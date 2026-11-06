@@ -1,0 +1,13 @@
+{
+  "name": "last-tide-marlow-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Generates Marlow's replies for Last Tide and keeps the AI key out of the game.",
+  "main": "server.js",
+  "engines": { "node": ">=20.6" },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --env-file=.env server.js",
+    "test": "node --test"
+  }
+}
