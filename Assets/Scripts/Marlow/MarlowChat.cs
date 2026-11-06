@@ -14,7 +14,7 @@ namespace LastTide
         private const int TranscriptLines = 8;
         private const int HistoryLines = 6;
 
-        [SerializeField] private string serverUrl = "http://localhost:8787/marlow";
+        [SerializeField] private string serverUrl = "https://last-tide-marlow.onrender.com/marlow";
         [SerializeField] private GameObject player;
         [SerializeField] private DayNightCycle cycle;
         [SerializeField] private QuestManager quest;

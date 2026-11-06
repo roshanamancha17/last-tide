@@ -337,7 +337,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3a412b2f2cfb388488c876488ef0e798, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::LastTide.MarlowChat
-  serverUrl: http://localhost:8787/marlow
+  serverUrl: https://last-tide-marlow.onrender.com/marlow
   player: {fileID: 0}
   cycle: {fileID: 0}
   quest: {fileID: 0}
