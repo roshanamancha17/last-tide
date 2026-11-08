@@ -116,6 +116,10 @@ function createLimiter({ perMinute, perDay, now = Date.now }) {
   };
 }
 
+function reasoningEffort(config) {
+  return config.reasoningEffort === undefined ? 'low' : config.reasoningEffort;
+}
+
 async function askModel(config, request) {
   const started = Date.now();
   const response = await fetch(config.upstreamUrl, {
@@ -124,6 +128,8 @@ async function askModel(config, request) {
     signal: AbortSignal.timeout(config.timeoutMs),
     body: JSON.stringify({
       model: config.model,
+      // Reasoning models think before answering; long thinking can cut the reply off and wastes free tokens.
+      ...(reasoningEffort(config) ? { reasoning_effort: reasoningEffort(config) } : {}),
       temperature: 0.7,
       max_completion_tokens: 400,
       response_format: { type: 'json_object' },
@@ -142,7 +148,10 @@ async function askModel(config, request) {
   });
 
   if (!response.ok) {
-    throw new Error(`AI service answered ${response.status}`);
+    // Only the error code is kept; the message can quote what the player said.
+    const failure = await response.json().catch(() => null);
+    const code = failure && failure.error && typeof failure.error.code === 'string' ? ` (${failure.error.code.slice(0, 60)})` : '';
+    throw new Error(`AI service answered ${response.status}${code}`);
   }
 
   const data = await response.json();
@@ -251,7 +260,7 @@ function createServer(config) {
       }
       send(res, 200, reply);
     } catch (error) {
-      console.error('Marlow request failed:', error.message);
+      (config.logError || console.error)(`Marlow request failed: ${error.message}`);
       send(res, 502, { error: 'ai_unavailable' });
     }
   });
@@ -265,6 +274,8 @@ if (require.main === module) {
     upstreamUrl: 'https://api.groq.com/openai/v1/chat/completions',
     maxPerDay: Number(process.env.MAX_REQUESTS_PER_DAY) || 900,
     timeoutMs: 10000,
+    // Set GROQ_REASONING_EFFORT to an empty value for models that don't support it.
+    reasoningEffort: process.env.GROQ_REASONING_EFFORT ?? 'low',
   };
   createServer(config).listen(port, () => {
     console.log(`Marlow server on port ${port}. AI key set: ${Boolean(config.apiKey)}`);

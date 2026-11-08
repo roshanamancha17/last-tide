@@ -162,3 +162,24 @@ test('still replies when the AI service sends no usage numbers', async () => {
     });
   assert.strictEqual(JSON.parse(lines[0]).total, null);
 });
+
+test('logs the AI service error code when it rejects a reply', async () => {
+  const lines = [];
+  await withServer((body, req, res) => {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: { message: 'Failed to generate JSON for: secret words', code: 'json_validate_failed' } }));
+  }, { logError: (line) => lines.push(line) }, async (post) => {
+    assert.strictEqual((await post({ message: 'hi' })).status, 502);
+  });
+  assert.strictEqual(lines.length, 1);
+  assert.ok(lines[0].includes('400') && lines[0].includes('json_validate_failed'));
+  assert.ok(!lines[0].includes('secret words'));
+});
+
+test('asks the model to keep its reasoning short', async () => {
+  let sent;
+  await withServer((body, req, res) => { sent = body; answer(res, JSON.stringify({ reply: 'Hi.' })); }, {}, async (post) => {
+    await post({ message: 'hi' });
+  });
+  assert.strictEqual(sent.reasoning_effort, 'low');
+});
