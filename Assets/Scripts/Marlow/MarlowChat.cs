@@ -370,12 +370,15 @@ namespace LastTide
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
+            GameObject safeObject = new GameObject("Safe Area", typeof(RectTransform));
+            safeObject.transform.SetParent(canvasObject.transform, false);
+            safeObject.AddComponent<SafeAreaPanel>().Apply(Screen.safeArea, new Vector2(Screen.width, Screen.height));
 
-            hintPanel = Panel(canvasObject.transform, "Talk Hint", new Vector2(300f, 60f));
+            hintPanel = Panel(safeObject.transform, "Talk Hint", new Vector2(300f, 60f));
             Label(hintPanel.transform, "Hint", TextAnchor.MiddleCenter, 26, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero).text = "[T] Talk to Marlow";
             hintPanel.SetActive(false);
 
-            chatPanel = Panel(canvasObject.transform, "Chat", new Vector2(760f, 470f));
+            chatPanel = Panel(safeObject.transform, "Chat", new Vector2(760f, 470f));
             transcriptText = Label(chatPanel.transform, "Transcript", TextAnchor.LowerLeft, 26, Vector2.zero, Vector2.one,
                 new Vector2(18f, 92f), new Vector2(-18f, -14f));
             inputText = Label(chatPanel.transform, "Input", TextAnchor.MiddleLeft, 26, Vector2.zero, new Vector2(1f, 0f),

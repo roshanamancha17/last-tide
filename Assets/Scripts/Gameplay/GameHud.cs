@@ -52,6 +52,12 @@ namespace LastTide
 
         private void Update()
         {
+            // The key list in the corner isn't needed when the buttons are on screen.
+            if (InputCollector.TouchActive && hintPanel.activeSelf)
+            {
+                hintPanel.SetActive(false);
+            }
+
             if (messageText.gameObject.activeSelf && Time.time >= messageUntil)
             {
                 messageText.gameObject.SetActive(false);
@@ -60,6 +66,7 @@ namespace LastTide
 
         public void SetPrompt(string prompt)
         {
+            prompt = ControlHints.ForDevice(prompt, InputCollector.TouchActive);
             bool visible = !string.IsNullOrEmpty(prompt);
             if (promptPanel.activeSelf != visible)
             {
@@ -105,6 +112,7 @@ namespace LastTide
 
         public void ShowEnding(string text)
         {
+            text = ControlHints.ForDevice(text, InputCollector.TouchActive);
             endingText.text = text;
             endingPanel.SetActive(true);
             inventoryPanel.SetActive(false);
@@ -127,6 +135,7 @@ namespace LastTide
 
         public void SetCraftingPanel(string text)
         {
+            text = ControlHints.ForDevice(text, InputCollector.TouchActive);
             bool visible = !string.IsNullOrEmpty(text);
             craftingPanel.SetActive(visible);
             if (visible)
@@ -159,7 +168,11 @@ namespace LastTide
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
             scaler.matchWidthOrHeight = 0.5f;
-            Transform root = canvasObject.transform;
+            Transform screenRoot = canvasObject.transform;
+            GameObject safeObject = new GameObject("Safe Area", typeof(RectTransform));
+            safeObject.transform.SetParent(screenRoot, false);
+            safeObject.AddComponent<SafeAreaPanel>().Apply(Screen.safeArea, new Vector2(Screen.width, Screen.height));
+            Transform root = safeObject.transform;
 
             inventoryPanel = CreatePanel(root, "Inventory", new Vector2(0f, 1f), new Vector2(24f, -24f), new Vector2(240f, 330f));
             inventoryText = CreateText(inventoryPanel.transform, TextAnchor.UpperLeft, 28);
@@ -193,14 +206,14 @@ namespace LastTide
             objectivePanel = CreatePanel(root, "Objective", new Vector2(0.5f, 1f), new Vector2(0f, -24f), new Vector2(760f, 60f));
             objectiveText = CreateText(objectivePanel.transform, TextAnchor.MiddleCenter, 28);
 
-            endingPanel = CreatePanel(root, "Ending", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1920f, 1080f));
+            endingPanel = CreatePanel(screenRoot, "Ending", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1920f, 1080f));
             endingPanel.GetComponent<Image>().color = new Color(0.02f, 0.05f, 0.09f, 0.78f);
             endingText = CreateText(endingPanel.transform, TextAnchor.MiddleCenter, 44);
             endingPanel.SetActive(false);
 
             GameObject fadeObject = new GameObject("Fade");
             RectTransform fadeRect = fadeObject.AddComponent<RectTransform>();
-            fadeRect.SetParent(root, false);
+            fadeRect.SetParent(screenRoot, false);
             fadeRect.anchorMin = Vector2.zero;
             fadeRect.anchorMax = Vector2.one;
             fadeRect.offsetMin = Vector2.zero;
