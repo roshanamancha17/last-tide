@@ -90,8 +90,7 @@ namespace LastTide
 
         private void HandleEating()
         {
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard == null || UiState.IsTyping || !keyboard.cKey.wasPressedThisFrame)
+            if (!GameInput.Current.Eat)
             {
                 return;
             }

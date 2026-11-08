@@ -41,6 +41,16 @@ namespace LastTide.Tests
         }
 
         [Test]
+        public void CameraTurnComesFromFingerPositionsEvenIfTheDeviceReportsNoDelta()
+        {
+            Frame(new TouchSample(2, TouchStage.Began, new Vector2(700f, 400f)));
+            Frame(new TouchSample(2, TouchStage.Moved, new Vector2(740f, 390f)));
+            Assert.AreEqual(new Vector2(40f, -10f), router.LookDelta);
+            Frame(new TouchSample(2, TouchStage.Moved, new Vector2(760f, 390f)));
+            Assert.AreEqual(new Vector2(20f, 0f), router.LookDelta);
+        }
+
+        [Test]
         public void MovingAndLookingWorkAtTheSameTime()
         {
             Frame(new TouchSample(1, TouchStage.Began, new Vector2(200f, 200f)),

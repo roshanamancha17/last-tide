@@ -94,6 +94,24 @@ namespace LastTide.Tests
         }
 
         [Test]
+        public void AskingForInputBeforeTheScreenIsKnownGivesNothingInsteadOfAnError()
+        {
+            GameObject fresh = new GameObject("Unbuilt Touch Controls");
+            try
+            {
+                TouchControls unbuilt = fresh.AddComponent<TouchControls>();
+                InputFrame frame = default;
+                Assert.DoesNotThrow(() => frame = unbuilt.Collect());
+                Assert.AreEqual(Vector2.zero, frame.Move);
+                Assert.IsFalse(frame.Jump);
+            }
+            finally
+            {
+                Object.DestroyImmediate(fresh);
+            }
+        }
+
+        [Test]
         public void BuildsSixButtonsAndAHiddenJoystick()
         {
             Transform ui = host.transform.Find("Touch Controls UI");

@@ -8,6 +8,8 @@ using UnityTouchPhase = UnityEngine.InputSystem.TouchPhase;
 namespace LastTide
 {
     /// <summary>On-screen joystick, camera drag and buttons. Turns fingers into an InputFrame.</summary>
+    // Reads fingers before InputCollector (-500) asks for them, so taps aren't a frame late.
+    [DefaultExecutionOrder(-600)]
     public class TouchControls : MonoBehaviour
     {
         /// <summary>A swipe across the whole screen width turns the camera about this many mouse-pixel units.</summary>
@@ -67,6 +69,11 @@ namespace LastTide
         /// <summary>This frame's touch input. Button taps count once, then clear.</summary>
         public InputFrame Collect()
         {
+            if (router == null)
+            {
+                return default;
+            }
+
             InputFrame frame = new InputFrame
             {
                 Move = router.Joystick.Value,

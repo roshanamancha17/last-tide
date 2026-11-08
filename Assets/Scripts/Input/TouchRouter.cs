@@ -32,6 +32,7 @@ namespace LastTide
         private readonly HashSet<int> seen = new HashSet<int>();
         private int moveFinger = None;
         private int lookFinger = None;
+        private Vector2 lookLast;
 
         public TouchRouter(VirtualJoystick joystick)
         {
@@ -60,7 +61,12 @@ namespace LastTide
                     case TouchStage.Moved:
                     case TouchStage.Held:
                         if (touch.Id == moveFinger) Joystick.Drag(touch.Position);
-                        if (touch.Id == lookFinger) LookDelta += touch.Delta;
+                        // Worked out from positions: some devices and the editor simulator report no delta.
+                        if (touch.Id == lookFinger)
+                        {
+                            LookDelta += touch.Position - lookLast;
+                            lookLast = touch.Position;
+                        }
                         break;
                     case TouchStage.Ended:
                         Release(touch.Id);
@@ -96,6 +102,7 @@ namespace LastTide
             else if (!leftHalf && lookFinger == None)
             {
                 lookFinger = touch.Id;
+                lookLast = touch.Position;
             }
         }
 

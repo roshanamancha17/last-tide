@@ -44,19 +44,16 @@ namespace LastTide
             }
 
             HandleCursor();
-            Mouse mouse = Mouse.current;
-            if (mouse != null && Cursor.lockState == CursorLockMode.Locked)
+            if (framesToIgnoreMouse > 0)
             {
-                if (framesToIgnoreMouse > 0)
-                {
-                    framesToIgnoreMouse--;
-                }
-                else
-                {
-                    Vector2 delta = mouse.delta.ReadValue();
-                    yaw += delta.x * sensitivity;
-                    pitch = Mathf.Clamp(pitch - delta.y * sensitivity, minPitch, maxPitch);
-                }
+                framesToIgnoreMouse--;
+            }
+            else
+            {
+                // Mouse (while the cursor is locked) and touch drags both arrive here.
+                Vector2 delta = GameInput.Current.Look;
+                yaw += delta.x * sensitivity;
+                pitch = Mathf.Clamp(pitch - delta.y * sensitivity, minPitch, maxPitch);
             }
 
             Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
@@ -75,6 +72,16 @@ namespace LastTide
 
         private void HandleCursor()
         {
+            // With touch controls there is no cursor to capture.
+            if (InputCollector.TouchActive)
+            {
+                if (Cursor.lockState != CursorLockMode.None)
+                {
+                    LockCursor(false);
+                }
+                return;
+            }
+
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame && !UiState.IsTyping && UiState.EscapeHandledFrame != Time.frameCount)
             {

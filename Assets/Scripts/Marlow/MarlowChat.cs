@@ -98,18 +98,23 @@ namespace LastTide
 
         private void Update()
         {
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard == null || !marlow.IsAwake)
+            if (!marlow.IsAwake)
             {
                 return;
             }
 
             if (!open)
             {
-                if (keyboard.tKey.wasPressedThisFrame)
+                if (GameInput.Current.Talk)
                 {
                     SetOpen(true);
                 }
+                return;
+            }
+
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null)
+            {
                 return;
             }
 

@@ -58,16 +58,10 @@ namespace LastTide
 
         private void Update()
         {
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard == null)
-            {
-                return;
-            }
-
-            Vector2 input = UiState.IsTyping ? Vector2.zero : ReadMoveInput(keyboard);
-            Vector3 direction = CameraRelative(input);
+            InputFrame input = GameInput.Current;
+            Vector3 direction = CameraRelative(input.Move);
             IsMoving = direction.sqrMagnitude > 0.001f;
-            IsSprinting = IsMoving && SprintAllowed && !UiState.IsTyping && keyboard.leftShiftKey.isPressed;
+            IsSprinting = IsMoving && SprintAllowed && input.Sprint;
             float speed = IsSprinting ? sprintSpeed : walkSpeed;
 
             if (direction.sqrMagnitude > 0.001f)
@@ -78,7 +72,7 @@ namespace LastTide
 
             if (controller.isGrounded)
             {
-                verticalVelocity = keyboard.spaceKey.wasPressedThisFrame && !UiState.IsTyping
+                verticalVelocity = input.Jump
                     ? Mathf.Sqrt(2f * jumpHeight * -gravity)
                     : -2f;
             }
@@ -87,16 +81,6 @@ namespace LastTide
             Vector3 motion = direction * speed + Vector3.up * verticalVelocity;
             controller.Move(motion * Time.deltaTime);
             KeepOutOfDeepWater();
-        }
-
-        private static Vector2 ReadMoveInput(Keyboard keyboard)
-        {
-            Vector2 input = Vector2.zero;
-            if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) input.y += 1f;
-            if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) input.y -= 1f;
-            if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) input.x += 1f;
-            if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) input.x -= 1f;
-            return Vector2.ClampMagnitude(input, 1f);
         }
 
         private Vector3 CameraRelative(Vector2 input)

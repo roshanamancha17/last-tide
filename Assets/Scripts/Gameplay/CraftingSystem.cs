@@ -72,19 +72,19 @@ namespace LastTide
 
         private void Update()
         {
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard == null || UiState.IsTyping)
+            if (UiState.IsTyping)
             {
                 return;
             }
 
-            if (keyboard.tabKey.wasPressedThisFrame)
+            if (GameInput.Current.Craft)
             {
                 panelOpen = !panelOpen;
                 RefreshPanel();
             }
 
-            if (!panelOpen)
+            Keyboard keyboard = Keyboard.current;
+            if (!panelOpen || keyboard == null)
             {
                 return;
             }

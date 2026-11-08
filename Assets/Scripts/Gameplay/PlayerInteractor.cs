@@ -36,8 +36,7 @@ namespace LastTide
                 hud.SetPrompt(prompt);
             }
 
-            Keyboard keyboard = Keyboard.current;
-            if (target == null || keyboard == null || !keyboard.eKey.wasPressedThisFrame)
+            if (target == null || !GameInput.Current.Interact)
             {
                 return;
             }
