@@ -25,6 +25,9 @@ namespace LastTide
         private bool ending;
         private bool canRestart;
 
+        /// <summary>True once the beacon is lit and the rescue has begun.</summary>
+        public bool Ended => ending;
+
         public Transform BeaconTarget => beacon;
         public Transform WreckTarget => wreckPart;
         public Transform ShelterTarget => shelterPart;

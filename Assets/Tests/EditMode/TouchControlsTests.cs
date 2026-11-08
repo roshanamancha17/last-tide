@@ -127,6 +127,42 @@ namespace LastTide.Tests
         }
 
         [Test]
+        public void ReportWorksOnlyWhenThereIsAReplyToReport()
+        {
+            Vector2 report = Centre(TouchAction.Report);
+            Frame(new TouchSample(1, TouchStage.Began, report));
+            Assert.IsFalse(controls.Collect().Report);
+
+            Frame(new TouchSample(1, TouchStage.Ended, report));
+            controls.SetReportVisible(true);
+            Frame(new TouchSample(2, TouchStage.Began, report));
+            Assert.IsTrue(controls.Collect().Report);
+            Assert.IsFalse(controls.Collect().Report, "one tap reports once");
+            Assert.IsTrue(host.transform.Find("Touch Controls UI/Report Button").gameObject.activeSelf);
+        }
+
+        [Test]
+        public void HiddenControlsIgnoreTouchesAndStopMovement()
+        {
+            Frame(new TouchSample(1, TouchStage.Began, new Vector2(300, 300)));
+            Frame(new TouchSample(1, TouchStage.Moved, new Vector2(400, 300)));
+            controls.SetVisible(false);
+            Assert.AreEqual(Vector2.zero, controls.Collect().Move, "hiding lets go of the joystick");
+            Frame(new TouchSample(2, TouchStage.Began, Centre(TouchAction.Jump)));
+            Assert.IsFalse(controls.Collect().Jump);
+            controls.SetVisible(true);
+            Frame(new TouchSample(3, TouchStage.Began, Centre(TouchAction.Jump)));
+            Assert.IsTrue(controls.Collect().Jump);
+        }
+
+        [Test]
+        public void ThePauseButtonPauses()
+        {
+            Frame(new TouchSample(1, TouchStage.Began, Centre(TouchAction.Pause)));
+            Assert.IsTrue(controls.Collect().Pause);
+        }
+
+        [Test]
         public void RecipeButtonsAreShownAndHiddenOnScreen()
         {
             Transform ui = host.transform.Find("Touch Controls UI");

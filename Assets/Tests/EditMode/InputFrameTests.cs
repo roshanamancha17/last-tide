@@ -29,6 +29,12 @@ namespace LastTide.Tests
         }
 
         [Test]
+        public void AReportFromEitherDeviceCounts()
+        {
+            Assert.IsTrue(InputFrame.Combine(new InputFrame(), new InputFrame { Report = true }).Report);
+        }
+
+        [Test]
         public void CameraTurnFromMouseAndTouchAddsUp()
         {
             InputFrame both = InputFrame.Combine(new InputFrame { Look = new Vector2(3f, 1f) }, new InputFrame { Look = new Vector2(2f, -1f) });

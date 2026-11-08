@@ -11,7 +11,26 @@ namespace LastTide
 
         public static string[] Recent => Events.ToArray();
 
+        /// <summary>Raised for each new event as it happens (not when a save is loaded), e.g. to play a sound.</summary>
+        public static event System.Action<string> Logged;
+
         public static void Log(string text)
+        {
+            Remember(text);
+            Logged?.Invoke(text);
+        }
+
+        /// <summary>Puts back events from a saved game without announcing them again.</summary>
+        public static void Restore(string[] saved)
+        {
+            Events.Clear();
+            foreach (string text in saved)
+            {
+                Remember(text);
+            }
+        }
+
+        private static void Remember(string text)
         {
             Events.Remove(text);
             Events.Add(text);

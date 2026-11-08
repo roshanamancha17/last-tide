@@ -50,6 +50,14 @@ namespace LastTide
             Apply();
         }
 
+        /// <summary>Jumps to a saved day and hour.</summary>
+        public void SetTime(int day, float hour)
+        {
+            Day = Mathf.Max(1, day);
+            Hour = Mathf.Repeat(hour, 24f);
+            Apply();
+        }
+
         public void SkipToMorning()
         {
             float target = SunriseHour + 1f;

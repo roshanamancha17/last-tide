@@ -13,6 +13,9 @@ const MAX_REPLY_LENGTH = 280;
 const MAX_LIST_ITEMS = 16;
 const MAX_LIST_ITEM_LENGTH = 200;
 const PLAYER_LIMIT_PER_MINUTE = 8;
+const REPORT_REASONS = ['offensive', 'wrong', 'other'];
+const REPORTS_PER_MINUTE = 5;
+const REPORTS_PER_DAY = 500;
 const WINDOW_MS = 60 * 1000;
 
 const SYSTEM_PROMPT = `You are Marlow, a small, damaged, floating ship's robot in the survival game Last Tide.
@@ -85,8 +88,9 @@ function cleanReply(content) {
   };
 }
 
-function createLimiter({ perMinute, perDay, now = Date.now }) {
+function createLimiter({ perMinute, perDay, perKeyPerDay = Infinity, now = Date.now }) {
   const players = new Map();
+  const daily = new Map();
   let day = '';
   let usedToday = 0;
 
@@ -97,9 +101,10 @@ function createLimiter({ perMinute, perDay, now = Date.now }) {
       day = today;
       usedToday = 0;
       players.clear();
+      daily.clear();
     }
 
-    if (usedToday >= perDay) {
+    if (usedToday >= perDay || (daily.get(key) || 0) >= perKeyPerDay) {
       return false;
     }
 
@@ -111,6 +116,7 @@ function createLimiter({ perMinute, perDay, now = Date.now }) {
 
     recent.push(time);
     players.set(key, recent);
+    daily.set(key, (daily.get(key) || 0) + 1);
     usedToday += 1;
     return true;
   };
@@ -180,7 +186,7 @@ function send(res, status, body) {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Game-Key',
   });
   res.end(JSON.stringify(body));
 }
@@ -209,8 +215,40 @@ function readJson(req) {
   });
 }
 
+// A player flags one of Marlow's AI replies (Google Play requires this for generated content).
+// Only the reply and the reason are kept: nothing that identifies the player.
+async function handleReport(req, res, config, allowReport, clientKey) {
+  let body;
+  try {
+    body = await readJson(req);
+  } catch {
+    send(res, 400, { error: 'bad_request' });
+    return;
+  }
+
+  const reply = text(body && body.reply, MAX_REPLY_LENGTH);
+  if (!reply) {
+    send(res, 400, { error: 'missing_reply' });
+    return;
+  }
+
+  if (!allowReport(clientKey)) {
+    send(res, 429, { error: 'rate_limited' });
+    return;
+  }
+
+  const reason = REPORT_REASONS.includes(body.reason) ? body.reason : 'other';
+  (config.log || console.log)(JSON.stringify({ event: 'report', reason, reply }));
+  send(res, 200, { ok: true });
+}
+
 function createServer(config) {
   const allow = createLimiter({ perMinute: PLAYER_LIMIT_PER_MINUTE, perDay: config.maxPerDay, now: config.now });
+  const allowReport = createLimiter({ perMinute: REPORTS_PER_MINUTE, perDay: REPORTS_PER_DAY, now: config.now });
+  // Each player's own daily allowance, so one person can't use up everyone's free replies.
+  const allowPlayer = createLimiter({
+    perMinute: Infinity, perDay: Infinity, perKeyPerDay: config.perPlayerPerDay || 40, now: config.now,
+  });
 
   return http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') {
@@ -220,6 +258,19 @@ function createServer(config) {
 
     if (req.method === 'GET' && req.url === '/health') {
       send(res, 200, { ok: true, aiConfigured: Boolean(config.apiKey) });
+      return;
+    }
+
+    const forwardedFor = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const clientKey = forwardedFor || req.socket.remoteAddress || 'unknown';
+    // The key is built into the game, so it only stops casual scripts, not a determined attacker.
+    if (req.method === 'POST' && config.gameKey && req.headers['x-game-key'] !== config.gameKey) {
+      send(res, 401, { error: 'unknown_client' });
+      return;
+    }
+
+    if (req.method === 'POST' && req.url === '/report') {
+      await handleReport(req, res, config, allowReport, clientKey);
       return;
     }
 
@@ -246,8 +297,7 @@ function createServer(config) {
       return;
     }
 
-    const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-    if (!allow(forwarded || req.socket.remoteAddress || 'unknown')) {
+    if (!allowPlayer(request.playerId || clientKey) || !allow(clientKey)) {
       send(res, 429, { error: 'rate_limited' });
       return;
     }
@@ -272,7 +322,10 @@ if (require.main === module) {
     apiKey: process.env.GROQ_API_KEY || '',
     model: process.env.GROQ_MODEL || 'openai/gpt-oss-20b',
     upstreamUrl: 'https://api.groq.com/openai/v1/chat/completions',
-    maxPerDay: Number(process.env.MAX_REQUESTS_PER_DAY) || 900,
+    // About what Groq's free 200,000 tokens a day covers at ~750 tokens per reply.
+    maxPerDay: Number(process.env.MAX_REQUESTS_PER_DAY) || 250,
+    perPlayerPerDay: Number(process.env.MAX_REPLIES_PER_PLAYER_PER_DAY) || 40,
+    gameKey: process.env.GAME_KEY || '',
     timeoutMs: 10000,
     // Set GROQ_REASONING_EFFORT to an empty value for models that don't support it.
     reasoningEffort: process.env.GROQ_REASONING_EFFORT ?? 'low',

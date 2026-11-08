@@ -5,14 +5,25 @@ using UnityEngine;
 namespace LastTide.Tests
 {
     /// <summary>Runs the edit-mode unit tests from the LastTide menu and writes each result to the console.</summary>
+    [InitializeOnLoad]
     public static class UnitTestMenu
     {
+        // Attached every time scripts load, because PlayMode tests reload scripts mid-run and would drop it.
+        static UnitTestMenu()
+        {
+            ScriptableObject.CreateInstance<TestRunnerApi>().RegisterCallbacks(new Reporter());
+        }
+
         [MenuItem("LastTide/Run Unit Tests")]
         public static void Run()
         {
-            TestRunnerApi api = ScriptableObject.CreateInstance<TestRunnerApi>();
-            api.RegisterCallbacks(new Reporter());
-            api.Execute(new ExecutionSettings(new Filter { testMode = TestMode.EditMode }));
+            ScriptableObject.CreateInstance<TestRunnerApi>().Execute(new ExecutionSettings(new Filter { testMode = TestMode.EditMode }));
+        }
+
+        [MenuItem("LastTide/Run Integration Tests")]
+        public static void RunIntegration()
+        {
+            ScriptableObject.CreateInstance<TestRunnerApi>().Execute(new ExecutionSettings(new Filter { testMode = TestMode.PlayMode }));
         }
 
         private sealed class Reporter : ICallbacks

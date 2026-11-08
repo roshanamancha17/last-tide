@@ -23,7 +23,7 @@ namespace LastTide.Tests
         {
             var layout = new TouchLayout(screen, safe, dpi);
             List<KeyValuePair<TouchAction, Rect>> buttons = layout.Buttons.ToList();
-            Assert.AreEqual(9, buttons.Count, "6 buttons plus 3 recipe buttons");
+            Assert.AreEqual(11, buttons.Count, "6 buttons, 3 recipe buttons, Report and Pause");
             float minimum = TouchLayout.MinButtonPixels(dpi);
             foreach (KeyValuePair<TouchAction, Rect> button in buttons)
             {
@@ -51,7 +51,7 @@ namespace LastTide.Tests
             var layout = new TouchLayout(screen, safe, dpi);
             foreach (KeyValuePair<TouchAction, Rect> button in layout.Buttons)
             {
-                Assert.IsTrue(layout.TryGetButton(button.Value.center, out TouchAction found, recipesVisible: true));
+                Assert.IsTrue(layout.TryGetButton(button.Value.center, out TouchAction found, recipesVisible: true, reportVisible: true));
                 Assert.AreEqual(button.Key, found);
             }
 
@@ -63,6 +63,7 @@ namespace LastTide.Tests
         {
             var layout = new TouchLayout(screen, safe, dpi);
             Assert.IsFalse(layout.TryGetButton(layout.Buttons[TouchAction.Recipe2].center, out _));
+            Assert.IsFalse(layout.TryGetButton(layout.Buttons[TouchAction.Report].center, out _));
             Assert.IsTrue(layout.TryGetButton(layout.Buttons[TouchAction.Craft].center, out TouchAction craft));
             Assert.AreEqual(TouchAction.Craft, craft);
         }

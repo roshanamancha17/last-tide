@@ -43,6 +43,70 @@ namespace LastTide.EditorTools
             Build(OutputFolder, BuildOptions.None);
         }
 
+        [MenuItem("LastTide/Delete Saved Game")]
+        public static void DeleteSave()
+        {
+            SaveManager.DeleteSave();
+            Debug.Log("[LastTide] Saved game deleted; the next Play starts a new game.");
+        }
+
+        [MenuItem("LastTide/Android/Build Test APK")]
+        public static void BuildAndroidTest()
+        {
+            BuildAndroid("Builds/Android/LastTide-test.apk", appBundle: false,
+                BuildOptions.Development | BuildOptions.ConnectWithProfiler);
+        }
+
+        [MenuItem("LastTide/Android/Build Test APK and Run on Phone")]
+        public static void BuildAndroidTestAndRun()
+        {
+            BuildAndroid("Builds/Android/LastTide-test.apk", appBundle: false,
+                BuildOptions.Development | BuildOptions.ConnectWithProfiler | BuildOptions.AutoRunPlayer);
+        }
+
+        [MenuItem("LastTide/Android/Build for Play Store (.aab)")]
+        public static void BuildAndroidRelease()
+        {
+            BuildAndroid($"Builds/Android/LastTide-{PlayerSettings.bundleVersion}.aab", appBundle: true, BuildOptions.None);
+        }
+
+        private static void BuildAndroid(string path, bool appBundle, BuildOptions buildOptions)
+        {
+            if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.Android, BuildTarget.Android))
+            {
+                Debug.LogError("[LastTide] Android build support isn't installed. Add it in Unity Hub > Installs > Add modules.");
+                return;
+            }
+
+            AndroidSetup.Apply();
+            var problems = AndroidSetup.Problems(forPlayStore: appBundle);
+            if (problems.Count > 0)
+            {
+                Debug.LogError("[LastTide] Can't build for Android yet:\n- " + string.Join("\n- ", problems));
+                return;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(path));
+            EditorUserBuildSettings.buildAppBundle = appBundle;
+            BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = new[] { ScenePath },
+                locationPathName = path,
+                target = BuildTarget.Android,
+                options = buildOptions,
+            });
+
+            BuildSummary summary = report.summary;
+            if (summary.result != BuildResult.Succeeded)
+            {
+                Debug.LogError($"[LastTide] Android build {summary.result} with {summary.totalErrors} errors.");
+                return;
+            }
+
+            Debug.Log($"[LastTide] Android build done in {summary.totalTime.TotalMinutes:F1} min: {path} " +
+                      $"({summary.totalSize / (1024f * 1024f):F1} MB).");
+        }
+
         private static void Build(string folder, BuildOptions buildOptions)
         {
             if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.WebGL, BuildTarget.WebGL))

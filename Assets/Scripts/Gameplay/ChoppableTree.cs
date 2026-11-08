@@ -10,6 +10,12 @@ namespace LastTide
 
         public override float PriorityPenalty => 1.5f;
 
+        public int ChopsLeft
+        {
+            get => chopsLeft;
+            set => chopsLeft = Mathf.Max(0, value);
+        }
+
         public override string GetPrompt(Inventory inventory)
         {
             if (!inventory.Has(ItemType.Axe) || chopsLeft <= 0)

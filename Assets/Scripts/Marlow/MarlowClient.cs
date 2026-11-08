@@ -22,6 +22,13 @@ namespace LastTide
     }
 
     [Serializable]
+    public class MarlowReport
+    {
+        public string reply;
+        public string reason;
+    }
+
+    [Serializable]
     public class MarlowResponse
     {
         public string reply;
@@ -34,6 +41,12 @@ namespace LastTide
     {
         private const int TimeoutSeconds = 12;
 
+        /// <summary>Must match GAME_KEY on the server. It ships inside the game, so it only deters casual misuse.</summary>
+        private const string GameKey = "lt-4b7e2c91d05f8a36";
+
+        /// <summary>True once the server has answered, so later requests can use the normal timeout.</summary>
+        public static bool ServerAwake { get; private set; }
+
         public static IEnumerator Ask(string url, MarlowRequest request, Action<MarlowResponse> onDone)
         {
             byte[] body = Encoding.UTF8.GetBytes(JsonUtility.ToJson(request));
@@ -42,8 +55,14 @@ namespace LastTide
                 web.uploadHandler = new UploadHandlerRaw(body);
                 web.downloadHandler = new DownloadHandlerBuffer();
                 web.SetRequestHeader("Content-Type", "application/json");
-                web.timeout = TimeoutSeconds;
+                web.SetRequestHeader("X-Game-Key", GameKey);
+                web.timeout = ServerTimeouts.ForRequest(ServerAwake);
                 yield return web.SendWebRequest();
+
+                if (web.result == UnityWebRequest.Result.Success)
+                {
+                    ServerAwake = true;
+                }
 
                 if (web.result != UnityWebRequest.Result.Success)
                 {
@@ -56,6 +75,26 @@ namespace LastTide
             }
         }
 
+        /// <summary>Sends a flagged AI reply to the server. Fire and forget: the player is thanked either way.</summary>
+        public static IEnumerator Report(string url, string reply, string reason)
+        {
+            string reportUrl = url.Replace("/marlow", "/report");
+            byte[] body = Encoding.UTF8.GetBytes(JsonUtility.ToJson(new MarlowReport { reply = reply, reason = reason }));
+            using (UnityWebRequest web = new UnityWebRequest(reportUrl, UnityWebRequest.kHttpVerbPOST))
+            {
+                web.uploadHandler = new UploadHandlerRaw(body);
+                web.downloadHandler = new DownloadHandlerBuffer();
+                web.SetRequestHeader("Content-Type", "application/json");
+                web.SetRequestHeader("X-Game-Key", GameKey);
+                web.timeout = TimeoutSeconds;
+                yield return web.SendWebRequest();
+                if (web.result != UnityWebRequest.Result.Success)
+                {
+                    Debug.Log($"[LastTide] Report not delivered: {web.error}");
+                }
+            }
+        }
+
         /// <summary>Wakes a sleeping free server early, so the first chat is more likely to get a live reply.</summary>
         public static IEnumerator Wake(string url)
         {
@@ -64,6 +103,7 @@ namespace LastTide
             {
                 web.timeout = 90;
                 yield return web.SendWebRequest();
+                ServerAwake = web.result == UnityWebRequest.Result.Success;
             }
         }
 

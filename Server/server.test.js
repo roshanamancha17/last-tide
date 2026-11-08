@@ -183,3 +183,86 @@ test('asks the model to keep its reasoning short', async () => {
   });
   assert.strictEqual(sent.reasoning_effort, 'low');
 });
+
+function postReport(port, body) {
+  return fetch(`http://127.0.0.1:${port}/report`, { method: 'POST', body: JSON.stringify(body) });
+}
+
+test('a reported reply is logged with its reason, without asking the AI or recording who reported it', async () => {
+  const lines = [];
+  await withServer(() => assert.fail('reports must not call the AI'), { log: (line) => lines.push(line) }, async (post, port) => {
+    const res = await postReport(port, { reply: 'Something rude.', reason: 'offensive', playerId: 'abc123', message: 'my secret' });
+    assert.strictEqual(res.status, 200);
+  });
+  const logged = JSON.parse(lines.find((line) => line.includes('"report"')));
+  assert.deepStrictEqual(logged, { event: 'report', reason: 'offensive', reply: 'Something rude.' });
+});
+
+test('unknown reasons become "other" and long replies are cut', async () => {
+  const lines = [];
+  await withServer(() => {}, { log: (line) => lines.push(line) }, async (post, port) => {
+    await postReport(port, { reply: 'x'.repeat(1000), reason: 'nonsense' });
+  });
+  const logged = JSON.parse(lines[0]);
+  assert.strictEqual(logged.reason, 'other');
+  assert.strictEqual(logged.reply.length, 280);
+});
+
+test('a report needs the reply being reported', async () => {
+  await withServer(() => {}, { log: () => {} }, async (post, port) => {
+    assert.strictEqual((await postReport(port, { reason: 'offensive' })).status, 400);
+    const bad = await fetch(`http://127.0.0.1:${port}/report`, { method: 'POST', body: '{nope' });
+    assert.strictEqual(bad.status, 400);
+  });
+});
+
+test('reports are rate limited separately from chat', async () => {
+  await withServer(() => {}, { log: () => {} }, async (post, port) => {
+    const statuses = [];
+    for (let i = 0; i < 7; i++) {
+      statuses.push((await postReport(port, { reply: `r${i}`, reason: 'wrong' })).status);
+    }
+    assert.deepStrictEqual(statuses.slice(0, 5), [200, 200, 200, 200, 200]);
+    assert.strictEqual(statuses[6], 429);
+  });
+});
+
+function postWith(port, body, headers) {
+  return fetch(`http://127.0.0.1:${port}/marlow`, { method: 'POST', body: JSON.stringify(body), headers });
+}
+
+test('with a game key configured, requests without the right key are refused', async () => {
+  await withServer((body, req, res) => answer(res, JSON.stringify({ reply: 'Hi.' })), { gameKey: 'k-123' }, async (post, port) => {
+    assert.strictEqual((await postWith(port, { message: 'hi' }, {})).status, 401);
+    assert.strictEqual((await postWith(port, { message: 'hi' }, { 'X-Game-Key': 'wrong' })).status, 401);
+    assert.strictEqual((await postWith(port, { message: 'hi' }, { 'X-Game-Key': 'k-123' })).status, 200);
+    const health = await fetch(`http://127.0.0.1:${port}/health`);
+    assert.strictEqual(health.status, 200, 'the wake-up check stays open');
+  });
+});
+
+test('without a game key configured, requests are accepted as before', async () => {
+  await withServer((body, req, res) => answer(res, JSON.stringify({ reply: 'Hi.' })), {}, async (post) => {
+    assert.strictEqual((await post({ message: 'hi' })).status, 200);
+  });
+});
+
+test('each player has a daily limit, even when the requests come from different networks', async () => {
+  await withServer((body, req, res) => answer(res, JSON.stringify({ reply: 'Hi.' })), { perPlayerPerDay: 2 }, async (post, port) => {
+    const ask = (ip) => postWith(port, { message: 'hi', playerId: 'player-1' }, { 'X-Forwarded-For': ip });
+    assert.strictEqual((await ask('1.1.1.1')).status, 200);
+    assert.strictEqual((await ask('2.2.2.2')).status, 200);
+    assert.strictEqual((await ask('3.3.3.3')).status, 429);
+    const other = await postWith(port, { message: 'hi', playerId: 'player-2' }, { 'X-Forwarded-For': '3.3.3.3' });
+    assert.strictEqual(other.status, 200, 'other players are unaffected');
+  });
+});
+
+test('the per-key daily limit resets the next day', () => {
+  let time = Date.UTC(2026, 10, 8, 12);
+  const allow = createLimiter({ perMinute: 100, perDay: 100, perKeyPerDay: 1, now: () => time });
+  assert.ok(allow('p'));
+  assert.ok(!allow('p'));
+  time += 24 * 60 * 60 * 1000;
+  assert.ok(allow('p'));
+});

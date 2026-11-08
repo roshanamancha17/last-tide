@@ -51,7 +51,7 @@ namespace LastTide
             else
             {
                 // Mouse (while the cursor is locked) and touch drags both arrive here.
-                Vector2 delta = GameInput.Current.Look;
+                Vector2 delta = SettingsService.Current.ApplyToLook(GameInput.Current.Look);
                 yaw += delta.x * sensitivity;
                 pitch = Mathf.Clamp(pitch - delta.y * sensitivity, minPitch, maxPitch);
             }
@@ -72,8 +72,8 @@ namespace LastTide
 
         private void HandleCursor()
         {
-            // With touch controls there is no cursor to capture.
-            if (InputCollector.TouchActive)
+            // With touch controls there is no cursor to capture, and menus need a free cursor.
+            if (InputCollector.TouchActive || UiState.MenuOpen)
             {
                 if (Cursor.lockState != CursorLockMode.None)
                 {

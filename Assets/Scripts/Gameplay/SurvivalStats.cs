@@ -35,6 +35,13 @@ namespace LastTide
             cycle = dayNight;
         }
 
+        /// <summary>Puts back the values from a saved game.</summary>
+        public void Restore(float hunger, float energy)
+        {
+            Hunger = Mathf.Clamp(hunger, 0f, MaxValue);
+            Energy = Mathf.Clamp(energy, 0f, MaxValue);
+        }
+
         public void SetCamp(Vector3 position)
         {
             campPosition = position;

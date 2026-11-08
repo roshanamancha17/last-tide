@@ -5,7 +5,9 @@
         "LastTide.Input",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "LastTide.Build",
+        "LastTide.Core"
     ],
     "includePlatforms": [
         "Editor"

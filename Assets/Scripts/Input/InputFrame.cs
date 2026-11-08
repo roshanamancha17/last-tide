@@ -21,6 +21,12 @@ namespace LastTide
         /// <summary>Recipe chosen this frame: 1 to 3, or 0 for none.</summary>
         public int Recipe;
 
+        /// <summary>The player asked to report Marlow's last AI reply.</summary>
+        public bool Report;
+
+        /// <summary>Esc, the Android back button, or the on-screen Pause button.</summary>
+        public bool Pause;
+
         /// <summary>Merges two devices, so keyboard and touch can be used at the same time.</summary>
         public static InputFrame Combine(InputFrame a, InputFrame b)
         {
@@ -35,6 +41,8 @@ namespace LastTide
                 Craft = a.Craft || b.Craft,
                 Talk = a.Talk || b.Talk,
                 Recipe = a.Recipe != 0 ? a.Recipe : b.Recipe,
+                Report = a.Report || b.Report,
+                Pause = a.Pause || b.Pause,
             };
         }
     }

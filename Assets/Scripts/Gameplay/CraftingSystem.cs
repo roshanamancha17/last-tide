@@ -55,6 +55,27 @@ namespace LastTide
             heldAxe = axe;
         }
 
+        public bool CampfireBuilt => campfireBuilt;
+        public Vector3 CampfirePosition { get; private set; }
+
+        /// <summary>Puts a saved campfire back where it was built.</summary>
+        public void RestoreCampfire(Vector3 position)
+        {
+            if (campfireBuilt || campfirePrefab == null)
+            {
+                return;
+            }
+
+            Instantiate(campfirePrefab, position, Quaternion.identity);
+            CampfirePosition = position;
+            campfireBuilt = true;
+            SurvivalStats stats = GetComponent<SurvivalStats>();
+            if (stats != null)
+            {
+                stats.SetCamp(position + Vector3.forward * 1.5f);
+            }
+        }
+
         /// <summary>True while the crafting list is showing.</summary>
         public bool PanelOpen => panelOpen;
 
@@ -146,6 +167,7 @@ namespace LastTide
             }
 
             Instantiate(campfirePrefab, hit.point, Quaternion.identity);
+            CampfirePosition = hit.point;
             campfireBuilt = true;
             SurvivalStats stats = GetComponent<SurvivalStats>();
             if (stats != null)

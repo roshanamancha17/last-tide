@@ -12,6 +12,7 @@ namespace LastTide
     {
         private TouchControls touch;
         private CraftingSystem crafting;
+        private MarlowChat chat;
 
         /// <summary>True once on-screen touch controls are in use.</summary>
         public static bool TouchActive { get; private set; }
@@ -50,10 +51,28 @@ namespace LastTide
                 }
 
                 touch.SetRecipesVisible(crafting != null && crafting.PanelOpen);
+                if (chat == null)
+                {
+                    chat = FindAnyObjectByType<MarlowChat>();
+                }
+
+                touch.SetReportVisible(chat != null && chat.CanReport);
+            }
+
+            if (touch != null)
+            {
+                touch.SetVisible(!UiState.MenuOpen);
             }
 
             InputFrame fingers = touch != null ? touch.Collect() : default;
-            GameInput.Set(InputFrame.Combine(keys, fingers));
+            InputFrame combined = InputFrame.Combine(keys, fingers);
+            if (UiState.MenuOpen)
+            {
+                // Menus only listen for Back; nothing reaches the game behind them.
+                combined = new InputFrame { Pause = combined.Pause };
+            }
+
+            GameInput.Set(combined);
         }
     }
 }

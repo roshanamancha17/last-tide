@@ -36,6 +36,12 @@ namespace LastTide
             return IsAwake ? null : "[E] Dig out the buried robot";
         }
 
+        /// <summary>Wakes Marlow from a saved game, without the first-meeting greeting.</summary>
+        public void WakeFromSave()
+        {
+            IsAwake = true;
+        }
+
         public override string Interact(Inventory inventory)
         {
             if (IsAwake)

@@ -29,6 +29,10 @@ namespace LastTide
         private bool touchMode;
         private TouchScreenKeyboard phoneKeyboard;
         private Text helpText;
+        private string lastLiveReply;
+
+        /// <summary>True while the chat shows an AI reply that hasn't been reported yet.</summary>
+        public bool CanReport => flow != null && flow.PanelVisible && !string.IsNullOrEmpty(lastLiveReply);
 
         private Marlow marlow;
         private Inventory inventory;
@@ -64,7 +68,9 @@ namespace LastTide
             marlow = GetComponent<Marlow>();
             inventory = player.GetComponent<Inventory>();
             stats = player.GetComponent<SurvivalStats>();
-            playerId = Guid.NewGuid().ToString("N");
+            playerId = PlayerIdentity.LoadOrCreate(
+                () => PlayerPrefs.GetString("MarlowPlayerId", string.Empty),
+                id => { PlayerPrefs.SetString("MarlowPlayerId", id); PlayerPrefs.Save(); });
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             BuildUi();
         }
@@ -111,6 +117,11 @@ namespace LastTide
 
             EnsureFlow();
             InputFrame input = GameInput.Current;
+            if (input.Report)
+            {
+                ReportLastReply();
+            }
+
             if (input.Talk)
             {
                 Apply(flow.TalkPressed());
@@ -145,6 +156,19 @@ namespace LastTide
             Sync();
         }
 
+        private void ReportLastReply()
+        {
+            if (string.IsNullOrEmpty(lastLiveReply))
+            {
+                AddLine("Game", "There's no AI reply to report.");
+                return;
+            }
+
+            StartCoroutine(MarlowClient.Report(serverUrl, lastLiveReply, "other"));
+            lastLiveReply = null;
+            AddLine("Game", "Thanks. That reply was reported for review.");
+        }
+
         private void EnsureFlow()
         {
             if (flow != null)
@@ -161,7 +185,7 @@ namespace LastTide
                 rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 1f);
                 rect.anchoredPosition = new Vector2(0f, -90f);
                 rect.sizeDelta = new Vector2(760f, 380f);
-                helpText.text = "Tap Talk to reply    Walk away to close";
+                helpText.text = "Tap Talk to reply    Report flags a reply    Walk away to close";
             }
         }
 
@@ -263,6 +287,14 @@ namespace LastTide
                 return;
             }
 
+            if (ChatCommands.IsReport(message))
+            {
+                typed = string.Empty;
+                ReportLastReply();
+                RefreshInput();
+                return;
+            }
+
             typed = string.Empty;
             AddLine("You", message);
             waiting = true;
@@ -274,6 +306,8 @@ namespace LastTide
         {
             waiting = false;
             MarlowResponse used = response ?? MarlowFallback.Reply(message, inventory, stats, quest);
+            // Only AI-written replies can be reported; backup lines were written by hand.
+            lastLiveReply = response != null ? response.reply : null;
             AddLine("Marlow", used.reply);
             history.Add($"Player: {message}");
             history.Add($"Marlow: {used.reply}");
@@ -330,7 +364,11 @@ namespace LastTide
 
         private void AddLine(string speaker, string line)
         {
-            string colour = speaker == "Marlow" ? "#7fe8ff" : "#ffd27f";
+            string colour = speaker == "Marlow" ? "#7fe8ff" : speaker == "Game" ? "#b0b0b0" : "#ffd27f";
+            if (speaker == "Marlow")
+            {
+                GameAudio.Play(GameSound.MarlowBlip);
+            }
             transcript.Add($"<color={colour}><b>{speaker}:</b></color> {line}");
             while (transcript.Count > TranscriptLines)
             {
@@ -385,7 +423,7 @@ namespace LastTide
                 new Vector2(18f, 40f), new Vector2(-18f, 86f));
             helpText = Label(chatPanel.transform, "Help", TextAnchor.MiddleLeft, 20, Vector2.zero, new Vector2(1f, 0f),
                 new Vector2(18f, 8f), new Vector2(-18f, 38f));
-            helpText.text = "[Enter] Send    [Esc] Close";
+            helpText.text = "[Enter] Send    [Esc] Close    /report flags Marlow's last reply";
             helpText.color = new Color(1f, 1f, 1f, 0.6f);
             chatPanel.SetActive(false);
         }

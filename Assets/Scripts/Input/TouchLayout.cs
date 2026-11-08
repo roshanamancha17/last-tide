@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace LastTide
 {
-    public enum TouchAction { Jump, Interact, Eat, Sprint, Craft, Talk, Recipe1, Recipe2, Recipe3 }
+    public enum TouchAction { Jump, Interact, Eat, Sprint, Craft, Talk, Recipe1, Recipe2, Recipe3, Report, Pause }
 
     /// <summary>
     /// Works out where the on-screen buttons go for a given screen, safe area (notches) and pixel density.
@@ -31,6 +31,14 @@ namespace LastTide
             (TouchAction.Recipe1, new Vector2(-340f, 370f), 110f),
             (TouchAction.Recipe2, new Vector2(-340f, 530f), 110f),
             (TouchAction.Recipe3, new Vector2(-340f, 690f), 110f),
+            // Only shown while Marlow's chat shows a reply that can be reported.
+            (TouchAction.Report, new Vector2(-530f, 690f), 110f),
+        };
+
+        // Measured from the safe area's top-right corner instead.
+        private static readonly (TouchAction action, Vector2 centre, float diameter)[] TopDesign =
+        {
+            (TouchAction.Pause, new Vector2(-60f, -55f), 80f),
         };
 
         public static bool IsRecipe(TouchAction action)
@@ -55,6 +63,14 @@ namespace LastTide
                 Vector2 middle = corner + centre * Scale;
                 buttons[action] = new Rect(middle.x - size * 0.5f, middle.y - size * 0.5f, size, size);
             }
+
+            Vector2 topCorner = new Vector2(safeArea.xMax, safeArea.yMax);
+            foreach ((TouchAction action, Vector2 centre, float diameter) in TopDesign)
+            {
+                float size = Mathf.Max(diameter * Scale, MinButtonPixels(dpi));
+                Vector2 middle = topCorner + centre * Scale;
+                buttons[action] = new Rect(middle.x - size * 0.5f, middle.y - size * 0.5f, size, size);
+            }
         }
 
         public Vector2 ScreenSize { get; }
@@ -69,11 +85,11 @@ namespace LastTide
         }
 
         /// <summary>The visible button under a screen point, using the round button shape.</summary>
-        public bool TryGetButton(Vector2 point, out TouchAction action, bool recipesVisible = false)
+        public bool TryGetButton(Vector2 point, out TouchAction action, bool recipesVisible = false, bool reportVisible = false)
         {
             foreach (KeyValuePair<TouchAction, Rect> pair in buttons)
             {
-                if (!recipesVisible && IsRecipe(pair.Key))
+                if ((!recipesVisible && IsRecipe(pair.Key)) || (!reportVisible && pair.Key == TouchAction.Report))
                 {
                     continue;
                 }

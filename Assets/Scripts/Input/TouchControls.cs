@@ -27,6 +27,7 @@ namespace LastTide
         private Vector2 builtScreen;
 
         private bool recipesVisible;
+        private bool reportVisible;
         private string[] recipeLabels = { "Knife", "Axe", "Campfire" };
 
         public TouchLayout Layout { get; private set; }
@@ -47,6 +48,34 @@ namespace LastTide
 
         public bool RecipesVisible => recipesVisible;
 
+        /// <summary>Hides all the touch controls, for example while a menu is open.</summary>
+        public void SetVisible(bool visible)
+        {
+            if (!visible)
+            {
+                ReleaseAll();
+            }
+
+            if (canvas != null && canvas.enabled != visible)
+            {
+                canvas.enabled = visible;
+            }
+
+            Visible = visible;
+        }
+
+        public bool Visible { get; private set; } = true;
+
+        /// <summary>Shows the Report button while there is an AI reply that can be reported.</summary>
+        public void SetReportVisible(bool visible)
+        {
+            reportVisible = visible;
+            if (buttonImages.TryGetValue(TouchAction.Report, out Image report) && report.gameObject.activeSelf != visible)
+            {
+                report.gameObject.SetActive(visible);
+            }
+        }
+
         /// <summary>Creates the layout and the on-screen graphics for one screen shape.</summary>
         public void Build(Vector2 screenSize, Rect safeArea, float dpi)
         {
@@ -61,9 +90,14 @@ namespace LastTide
         /// <summary>Handles one frame of fingers. Public so tests can feed made-up touches.</summary>
         public void Process(IReadOnlyList<TouchSample> touches)
         {
+            if (!Visible)
+            {
+                return;
+            }
+
             foreach (TouchSample touch in touches)
             {
-                if (touch.Stage == TouchStage.Began && Layout.TryGetButton(touch.Position, out TouchAction action, recipesVisible))
+                if (touch.Stage == TouchStage.Began && Layout.TryGetButton(touch.Position, out TouchAction action, recipesVisible, reportVisible))
                 {
                     buttonFingers.Add(touch.Id);
                     if (action == TouchAction.Sprint)
@@ -81,7 +115,7 @@ namespace LastTide
                 }
             }
 
-            router.Process(touches, Layout.ScreenSize.x, point => Layout.TryGetButton(point, out _, recipesVisible));
+            router.Process(touches, Layout.ScreenSize.x, point => Layout.TryGetButton(point, out _, recipesVisible, reportVisible));
         }
 
         /// <summary>This frame's touch input. Button taps count once, then clear.</summary>
@@ -105,6 +139,8 @@ namespace LastTide
                 Recipe = pressed.Contains(TouchAction.Recipe1) ? 1
                     : pressed.Contains(TouchAction.Recipe2) ? 2
                     : pressed.Contains(TouchAction.Recipe3) ? 3 : 0,
+                Report = pressed.Contains(TouchAction.Report),
+                Pause = pressed.Contains(TouchAction.Pause),
             };
             pressed.Clear();
             return frame;
@@ -202,6 +238,7 @@ namespace LastTide
             }
 
             SetRecipesVisible(recipesVisible);
+            SetReportVisible(reportVisible);
             float ring = Layout.JoystickRadius * 2f;
             joystickBase = Circle("Joystick Base", canvas.transform, circle, new Color(1f, 1f, 1f, 0.15f)).rectTransform;
             joystickBase.sizeDelta = new Vector2(ring, ring);
