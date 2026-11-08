@@ -11,8 +11,39 @@ namespace LastTide.EditorTools
         private const string ScenePath = "Assets/Scenes/Island.unity";
         private const string OutputFolder = "Builds/Web";
 
+        [MenuItem("LastTide/Preview Web Quality")]
+        public static void PreviewWebQuality()
+        {
+            QualitySettings.SetQualityLevel(0, true);
+            Debug.Log($"[LastTide] Editor quality is now {QualitySettings.names[0]}, as used by the web build.");
+        }
+
+        [MenuItem("LastTide/Preview PC Quality")]
+        public static void PreviewPcQuality()
+        {
+            QualitySettings.SetQualityLevel(1, true);
+            Debug.Log($"[LastTide] Editor quality is now {QualitySettings.names[1]}.");
+        }
+
+        [MenuItem("LastTide/Test Web Build Locally")]
+        public static void TestWeb()
+        {
+            Build("Builds/WebTest", BuildOptions.Development | BuildOptions.AutoRunPlayer);
+        }
+
+        [MenuItem("LastTide/Test Release Web Build Locally")]
+        public static void TestReleaseWeb()
+        {
+            Build("Builds/WebRelease", BuildOptions.AutoRunPlayer);
+        }
+
         [MenuItem("LastTide/Build for Web (itch.io)")]
         public static void BuildWeb()
+        {
+            Build(OutputFolder, BuildOptions.None);
+        }
+
+        private static void Build(string folder, BuildOptions buildOptions)
         {
             if (!BuildPipeline.IsBuildTargetSupported(BuildTargetGroup.WebGL, BuildTarget.WebGL))
             {
@@ -33,9 +64,9 @@ namespace LastTide.EditorTools
             BuildPlayerOptions options = new BuildPlayerOptions
             {
                 scenes = new[] { ScenePath },
-                locationPathName = OutputFolder,
+                locationPathName = folder,
                 target = BuildTarget.WebGL,
-                options = BuildOptions.None,
+                options = buildOptions,
             };
 
             BuildReport report = BuildPipeline.BuildPlayer(options);
@@ -47,8 +78,11 @@ namespace LastTide.EditorTools
             }
 
             Debug.Log($"[LastTide] Web build done in {summary.totalTime.TotalMinutes:F1} min: " +
-                      $"{summary.totalSize / (1024f * 1024f):F1} MB at {Path.GetFullPath(OutputFolder)}");
-            EditorUtility.RevealInFinder(Path.Combine(OutputFolder, "index.html"));
+                      $"{summary.totalSize / (1024f * 1024f):F1} MB at {Path.GetFullPath(folder)}");
+            if ((buildOptions & BuildOptions.AutoRunPlayer) == 0)
+            {
+                EditorUtility.RevealInFinder(Path.Combine(folder, "index.html"));
+            }
         }
     }
 }

@@ -131,3 +131,34 @@ test('the health check works and never reveals the key', async () => {
     assert.deepStrictEqual(JSON.parse(body), { ok: true, aiConfigured: true });
   });
 });
+
+test('logs token use for each reply without logging what was said', async () => {
+  const lines = [];
+  await withServer((body, req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({ reply: 'Vines hang near the palms.', action: 'point_vine' }) } }],
+      usage: { prompt_tokens: 610, completion_tokens: 180, total_tokens: 790, completion_tokens_details: { reasoning_tokens: 120 } },
+    }));
+  }, { log: (line) => lines.push(line) }, async (post) => {
+    assert.strictEqual((await post({ message: 'secret plan: where are vines?' })).status, 200);
+  });
+  assert.strictEqual(lines.length, 1);
+  const logged = JSON.parse(lines[0]);
+  assert.strictEqual(logged.event, 'usage');
+  assert.strictEqual(logged.prompt, 610);
+  assert.strictEqual(logged.completion, 180);
+  assert.strictEqual(logged.reasoning, 120);
+  assert.strictEqual(logged.total, 790);
+  assert.ok(Number.isFinite(logged.ms));
+  assert.ok(!lines[0].includes('secret plan') && !lines[0].includes('Vines hang'));
+});
+
+test('still replies when the AI service sends no usage numbers', async () => {
+  const lines = [];
+  await withServer((body, req, res) => answer(res, JSON.stringify({ reply: 'Hello.' })),
+    { log: (line) => lines.push(line) }, async (post) => {
+      assert.strictEqual((await post({ message: 'hi' })).status, 200);
+    });
+  assert.strictEqual(JSON.parse(lines[0]).total, null);
+});

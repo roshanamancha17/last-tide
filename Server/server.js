@@ -117,6 +117,7 @@ function createLimiter({ perMinute, perDay, now = Date.now }) {
 }
 
 async function askModel(config, request) {
+  const started = Date.now();
   const response = await fetch(config.upstreamUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.apiKey}` },
@@ -145,8 +146,24 @@ async function askModel(config, request) {
   }
 
   const data = await response.json();
+  logUsage(config, data && data.usage, Date.now() - started);
   const content = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
   return cleanReply(content);
+}
+
+// Records how many tokens a reply cost, so free-tier limits can be planned from real numbers.
+// Only counts are logged, never what the player or Marlow said.
+function logUsage(config, usage, ms) {
+  const details = (usage && usage.completion_tokens_details) || {};
+  const log = config.log || console.log;
+  log(JSON.stringify({
+    event: 'usage',
+    prompt: number(usage && usage.prompt_tokens),
+    completion: number(usage && usage.completion_tokens),
+    reasoning: number(details.reasoning_tokens),
+    total: number(usage && usage.total_tokens),
+    ms,
+  }));
 }
 
 function send(res, status, body) {

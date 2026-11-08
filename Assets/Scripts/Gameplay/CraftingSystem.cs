@@ -191,6 +191,10 @@ namespace LastTide
 
         private void RefreshPanel()
         {
+            // Tools appear in hand however they were obtained.
+            if (inventory.Has(ItemType.Knife)) ShowHeld(heldKnife);
+            if (inventory.Has(ItemType.Axe)) ShowHeld(heldAxe);
+
             if (hud == null)
             {
                 return;

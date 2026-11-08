@@ -16,6 +16,8 @@ namespace LastTide.EditorTools
         private const string ItemsPath = "Assets/Models/Items.fbx";
         private const string MarlowPath = "Assets/Models/Marlow.fbx";
         private const string QuestPath = "Assets/Models/Quest.fbx";
+        private const string PlayerPath = "Assets/Models/Player.fbx";
+        private const string TrailDirtTexturePath = "Assets/Models/TrailDirt.png";
         private const string TerrainTexturePath = "Assets/Models/TerrainColor.png";
         private const string TerrainTrailTexturePath = "Assets/Models/TerrainTrail.png";
         private const string PrefabFolder = "Assets/Prefabs";
@@ -37,6 +39,7 @@ namespace LastTide.EditorTools
             ConfigureModelImport(ItemsPath);
             ConfigureModelImport(MarlowPath);
             ConfigureModelImport(QuestPath);
+            ConfigureModelImport(PlayerPath);
             AllowLocalServerInEditor();
             ConfigureTerrainTexture();
 
@@ -74,12 +77,13 @@ namespace LastTide.EditorTools
             int[] counts = SetUpIslandObjects(island, materials);
             Vector3 spawn = FindSpawnPoint(terrain, island);
             TrailData trail = CarveTrail(terrain, island, spawn);
-            CreateTrailSurface(trail, materials["Dirt"]);
+            CreateTrailSurface(trail, materials["Dirt"], terrain.GetComponent<MeshCollider>());
+            AddTrailStones(trail, island, materials["Rock"]);
 
             LastTide.DayNightCycle cycle = CreateSun();
             CreateSky();
             CreateOcean();
-            GameObject player = CreatePlayer(spawn, terrain.GetComponent<Renderer>().bounds.center);
+            GameObject player = CreatePlayer(spawn, terrain.GetComponent<Renderer>().bounds.center, materials);
             CreateCamera(player.transform);
             AddPlayerSystems(player, prefabs, cycle);
             int[] itemCounts = ScatterItems(terrain, island, spawn, prefabs);
@@ -172,7 +176,18 @@ namespace LastTide.EditorTools
                 ["LampOn"] = EmissiveMaterial("LampOn", new Color(1f, 0.85f, 0.45f), 5f),
                 ["PartGlow"] = EmissiveMaterial("PartGlow", new Color(0.25f, 0.85f, 1f), 1.8f),
                 ["Beam"] = EmissiveMaterial("Beam", new Color(0.3f, 0.9f, 1f), 3f),
-                ["Dirt"] = LitMaterial("Dirt", Linear(0.26f, 0.17f, 0.09f), 0.05f, false),
+                ["Dirt"] = TrailDirtMaterial(),
+                ["WoodEnds"] = LitMaterial("WoodEnds", Linear(0.62f, 0.45f, 0.26f), 0.1f, false),
+                ["VineLeaf"] = LitMaterial("VineLeaf", Linear(0.12f, 0.45f, 0.06f), 0.25f, true),
+                ["Glint"] = EmissiveMaterial("Glint", new Color(1f, 0.95f, 0.7f), 2.5f),
+                ["Marker"] = EmissiveMaterial("Marker", new Color(1f, 0.72f, 0.12f), 2.2f),
+                ["PlayerSkin"] = LitMaterial("PlayerSkin", Linear(0.62f, 0.36f, 0.22f), 0.25f, false),
+                ["PlayerShirt"] = LitMaterial("PlayerShirt", Linear(0.85f, 0.30f, 0.10f), 0.15f, false),
+                ["PlayerShorts"] = LitMaterial("PlayerShorts", Linear(0.42f, 0.33f, 0.18f), 0.1f, false),
+                ["PlayerHair"] = LitMaterial("PlayerHair", Linear(0.06f, 0.035f, 0.02f), 0.3f, false),
+                ["PlayerHat"] = LitMaterial("PlayerHat", Linear(0.80f, 0.62f, 0.30f), 0.1f, true),
+                ["PlayerBand"] = LitMaterial("PlayerBand", Linear(0.25f, 0.07f, 0.04f), 0.2f, false),
+                ["PlayerEye"] = LitMaterial("PlayerEye", Linear(0.02f, 0.02f, 0.025f), 0.7f, false),
                 ["ShipWhite"] = LitMaterial("ShipWhite", Linear(0.82f, 0.84f, 0.84f), 0.3f, false),
                 ["ShipRed"] = LitMaterial("ShipRed", Linear(0.5f, 0.06f, 0.05f), 0.3f, false),
             };
@@ -211,6 +226,72 @@ namespace LastTide.EditorTools
             material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None;
             EditorUtility.SetDirty(material);
             return material;
+        }
+
+        private static Material TrailDirtMaterial()
+        {
+            const int size = 256;
+            Texture2D texture = new Texture2D(size, size, TextureFormat.RGB24, true);
+            Color dirt = new Color(0.60f, 0.47f, 0.32f), damp = new Color(0.47f, 0.35f, 0.23f), grass = new Color(0.36f, 0.40f, 0.18f);
+            Random.InitState(77);
+            Vector2[] pebbles = new Vector2[90];
+            for (int i = 0; i < pebbles.Length; i++)
+            {
+                pebbles[i] = new Vector2(Random.value * size, Random.value * size);
+            }
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float u = (float)x / size, v = (float)y / size;
+                    float large = TileNoise(u, v, 5f, 3.1f), fine = TileNoise(u, v, 22f, 8.7f);
+                    Color color = Color.Lerp(dirt, damp, Mathf.SmoothStep(0.35f, 0.75f, large));
+                    color *= 0.88f + 0.24f * fine;
+                    float edge = Mathf.Max(Mathf.InverseLerp(0.2f, 0.02f, u), Mathf.InverseLerp(0.8f, 0.98f, u));
+                    color = Color.Lerp(color, grass, Mathf.SmoothStep(0f, 1f, edge) * (0.6f + 0.4f * fine));
+                    foreach (Vector2 pebble in pebbles)
+                    {
+                        float dx = Mathf.Abs(x - pebble.x), dy = Mathf.Abs(y - pebble.y);
+                        dx = Mathf.Min(dx, size - dx);
+                        dy = Mathf.Min(dy, size - dy);
+                        float d = dx * dx + dy * dy;
+                        if (d < 5f)
+                        {
+                            color = Color.Lerp(color, new Color(0.62f, 0.58f, 0.52f), 1f - d / 5f);
+                        }
+                    }
+
+                    texture.SetPixel(x, y, color);
+                }
+            }
+
+            texture.Apply();
+            System.IO.File.WriteAllBytes(TrailDirtTexturePath, texture.EncodeToPNG());
+            Object.DestroyImmediate(texture);
+            AssetDatabase.ImportAsset(TrailDirtTexturePath);
+            TextureImporter importer = AssetImporter.GetAtPath(TrailDirtTexturePath) as TextureImporter;
+            if (importer != null)
+            {
+                importer.wrapModeU = TextureWrapMode.Clamp;
+                importer.wrapModeV = TextureWrapMode.Repeat;
+                importer.SaveAndReimport();
+            }
+
+            Material material = LitMaterial("Dirt", Color.white, 0.05f, false);
+            material.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(TrailDirtTexturePath));
+            EditorUtility.SetDirty(material);
+            return material;
+        }
+
+        // Noise that wraps at the texture's edges, so the trail repeats without seams.
+        private static float TileNoise(float u, float v, float frequency, float seed)
+        {
+            float a = Mathf.PerlinNoise(u * frequency + seed, v * frequency + seed);
+            float b = Mathf.PerlinNoise((u - 1f) * frequency + seed, v * frequency + seed);
+            float c = Mathf.PerlinNoise(u * frequency + seed, (v - 1f) * frequency + seed);
+            float d = Mathf.PerlinNoise((u - 1f) * frequency + seed, (v - 1f) * frequency + seed);
+            return Mathf.Lerp(Mathf.Lerp(a, b, u), Mathf.Lerp(c, d, u), v);
         }
 
         private static Material MarlowEyeMaterial()
@@ -444,7 +525,7 @@ namespace LastTide.EditorTools
             renderer.receiveShadows = false;
         }
 
-        private static GameObject CreatePlayer(Vector3 position, Vector3 islandCenter)
+        private static GameObject CreatePlayer(Vector3 position, Vector3 islandCenter, Dictionary<string, Material> materials)
         {
             GameObject player = new GameObject("Player");
             player.layer = IgnoreRaycastLayer;
@@ -464,10 +545,45 @@ namespace LastTide.EditorTools
             controller.stepOffset = 0.4f;
             player.AddComponent<LastTide.PlayerController>();
 
-            Material material = AssetDatabase.LoadAssetAtPath<Material>($"{MaterialFolder}/Player.mat");
-            AddPlayerPart(player.transform, PrimitiveType.Capsule, "Body", new Vector3(0f, 0.9f, 0f), new Vector3(0.7f, 0.9f, 0.7f), material);
-            AddPlayerPart(player.transform, PrimitiveType.Cube, "Facing Marker", new Vector3(0f, 1.45f, 0.3f), new Vector3(0.4f, 0.15f, 0.2f), material);
+            GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPath);
+            if (model == null)
+            {
+                Debug.LogWarning("[LastTide] Player.fbx not found, so the player is a capsule.");
+                Material material = AssetDatabase.LoadAssetAtPath<Material>($"{MaterialFolder}/Player.mat");
+                AddPlayerPart(player.transform, PrimitiveType.Capsule, "Body", new Vector3(0f, 0.9f, 0f), new Vector3(0.7f, 0.9f, 0.7f), material);
+                return player;
+            }
+
+            GameObject character = (GameObject)PrefabUtility.InstantiatePrefab(model, player.transform);
+            PrefabUtility.UnpackPrefabInstance(character, PrefabUnpackMode.Completely, InteractionMode.AutomatedAction);
+            character.name = "Castaway";
+            character.transform.localPosition = Vector3.zero;
+            foreach (Transform part in character.GetComponentsInChildren<Transform>(true))
+            {
+                part.gameObject.layer = IgnoreRaycastLayer;
+                MeshRenderer renderer = part.GetComponent<MeshRenderer>();
+                if (renderer == null)
+                {
+                    continue;
+                }
+
+                string key = PlayerMaterialFor(part.name);
+                renderer.sharedMaterial = materials[key];
+            }
+
+            player.AddComponent<LastTide.CharacterAnimator>().Configure(character.transform);
             return player;
+        }
+
+        private static string PlayerMaterialFor(string part)
+        {
+            if (part.Contains("Torso") || part.Contains("Shirt") || part.Contains("Sleeve")) return "PlayerShirt";
+            if (part.Contains("Shorts") || part.Contains("Waist")) return "PlayerShorts";
+            if (part.Contains("Hair")) return "PlayerHair";
+            if (part.Contains("HatBand")) return "PlayerBand";
+            if (part.Contains("Hat")) return "PlayerHat";
+            if (part.Contains("Eye")) return "PlayerEye";
+            return "PlayerSkin";
         }
 
         private static void AddPlayerPart(Transform parent, PrimitiveType type, string name, Vector3 position, Vector3 scale, Material material)
@@ -503,10 +619,12 @@ namespace LastTide.EditorTools
             GameObject model = AssetDatabase.LoadAssetAtPath<GameObject>(ItemsPath);
             Dictionary<string, GameObject> prefabs = new Dictionary<string, GameObject>
             {
-                ["Wood"] = PickupPrefab(model, "Wood", materials["Wood"], LastTide.ItemType.Wood, false),
-                ["Stone"] = PickupPrefab(model, "Stone", materials["Stone"], LastTide.ItemType.Stone, false),
-                ["Vine"] = PickupPrefab(model, "Vine", materials["Vine"], LastTide.ItemType.Vine, true),
-                ["Coconut"] = PickupPrefab(model, "Coconut", materials["Coconut"], LastTide.ItemType.Coconut, false),
+                ["Wood"] = PickupPrefab(model, "Wood", LastTide.ItemType.Wood, false, materials,
+                    ("Wood_Bark", "Wood"), ("Wood_Ends", "WoodEnds"), ("Wood", "Wood")),
+                ["Stone"] = PickupPrefab(model, "Stone", LastTide.ItemType.Stone, false, materials, ("Stone", "Stone")),
+                ["Vine"] = PickupPrefab(model, "Vine", LastTide.ItemType.Vine, true, materials,
+                    ("Vine", "Vine"), ("Vine_Leaves", "VineLeaf")),
+                ["Coconut"] = PickupPrefab(model, "Coconut", LastTide.ItemType.Coconut, false, materials, ("Coconut", "Coconut")),
             };
 
             GameObject knife = new GameObject("Knife");
@@ -539,12 +657,48 @@ namespace LastTide.EditorTools
             return prefabs;
         }
 
-        private static GameObject PickupPrefab(GameObject model, string name, Material material, LastTide.ItemType item, bool needsKnife)
+        // Parts missing from an older Items.fbx are skipped, so "Wood" is only used when "Wood_Bark" isn't there.
+        private static GameObject PickupPrefab(GameObject model, string name, LastTide.ItemType item, bool needsKnife,
+            Dictionary<string, Material> materials, params (string part, string material)[] parts)
         {
             GameObject root = new GameObject(name);
-            AddPart(model, name, root.transform, material);
+            bool hasBark = model.transform.Find("Wood_Bark") != null;
+            foreach ((string part, string material) in parts)
+            {
+                if (model.transform.Find(part) == null || (part == "Wood" && hasBark))
+                {
+                    continue;
+                }
+
+                AddPart(model, part, root.transform, materials[material]);
+            }
+
+            AddGlint(model, root.transform, materials["Glint"]);
             root.AddComponent<LastTide.Pickup>().Configure(item, needsKnife);
             return SavePrefab(root);
+        }
+
+        private static void AddGlint(GameObject model, Transform parent, Material material)
+        {
+            GameObject glint;
+            if (model.transform.Find("Glint") != null)
+            {
+                glint = AddPart(model, "Glint", parent, material).gameObject;
+            }
+            else
+            {
+                glint = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                Object.DestroyImmediate(glint.GetComponent<Collider>());
+                glint.transform.SetParent(parent, false);
+                glint.transform.localScale = Vector3.one * 0.12f;
+                glint.GetComponent<MeshRenderer>().sharedMaterial = material;
+            }
+
+            glint.name = "Glint";
+            MeshRenderer renderer = glint.GetComponent<MeshRenderer>();
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            glint.AddComponent<LastTide.ItemGlint>();
         }
 
         private static MeshRenderer AddPart(GameObject model, string part, Transform parent, Material material)
@@ -580,10 +734,37 @@ namespace LastTide.EditorTools
             stats.Configure(cycle);
             EditorUtility.SetDirty(stats);
             LastTide.CraftingSystem crafting = player.AddComponent<LastTide.CraftingSystem>();
-            GameObject knife = HeldItem(prefabs["Knife"], player.transform, new Vector3(0.42f, 0.85f, 0.12f), new Vector3(70f, 0f, 0f));
-            GameObject axe = HeldItem(prefabs["Axe"], player.transform, new Vector3(-0.42f, 0.5f, 0.12f), new Vector3(35f, 0f, 0f));
+            Transform rightArm = FindChild(player.transform, "ArmR");
+            Transform leftArm = FindChild(player.transform, "ArmL");
+            GameObject knife = rightArm != null
+                ? HandItem(prefabs["Knife"], player.transform, rightArm, new Vector3(80f, 0f, 0f), 0.04f)
+                : HeldItem(prefabs["Knife"], player.transform, new Vector3(0.42f, 0.85f, 0.12f), new Vector3(70f, 0f, 0f));
+            GameObject axe = leftArm != null
+                ? HandItem(prefabs["Axe"], player.transform, leftArm, new Vector3(70f, 0f, 0f), 0.14f)
+                : HeldItem(prefabs["Axe"], player.transform, new Vector3(-0.42f, 0.5f, 0.12f), new Vector3(35f, 0f, 0f));
             crafting.Configure(prefabs["Campfire"], knife, axe);
             EditorUtility.SetDirty(crafting);
+        }
+
+        private static Transform FindChild(Transform root, string name)
+        {
+            return root.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == name);
+        }
+
+        // Puts a tool in the character's hand, gripped a little way along its handle, so it swings with the arm.
+        private static GameObject HandItem(GameObject prefab, Transform player, Transform arm, Vector3 rotation, float grip)
+        {
+            GameObject item = (GameObject)PrefabUtility.InstantiatePrefab(prefab, arm);
+            Vector3 hand = arm.position + Vector3.down * 0.56f + player.forward * 0.02f;
+            item.transform.rotation = player.rotation * Quaternion.Euler(rotation);
+            item.transform.position = hand - item.transform.up * grip;
+            foreach (Transform part in item.GetComponentsInChildren<Transform>(true))
+            {
+                part.gameObject.layer = IgnoreRaycastLayer;
+            }
+
+            item.SetActive(false);
+            return item;
         }
 
         private static GameObject HeldItem(GameObject prefab, Transform parent, Vector3 position, Vector3 rotation)
@@ -753,7 +934,45 @@ namespace LastTide.EditorTools
             marlow.GetComponent<LastTide.MarlowChat>().Configure(player, cycle);
             EditorUtility.SetDirty(marlow);
             Debug.Log($"[LastTide] Marlow is buried at {best}.");
+            CreateGuideMarker(marlow, player);
             return marlow;
+        }
+
+        private static void CreateGuideMarker(GameObject marlow, GameObject player)
+        {
+            GameObject items = AssetDatabase.LoadAssetAtPath<GameObject>(ItemsPath);
+            Material material = AssetDatabase.LoadAssetAtPath<Material>($"{MaterialFolder}/Marker.mat");
+            Transform arrow = new GameObject("Robot Arrow").transform;
+            if (items.transform.Find("Marker_Arrow") != null)
+            {
+                AddPart(items, "Marker_Arrow", arrow, material);
+            }
+            else
+            {
+                GameObject shaft = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+                shaft.transform.SetParent(arrow, false);
+                shaft.transform.localPosition = new Vector3(0f, 0.35f, 0f);
+                shaft.transform.localScale = new Vector3(0.18f, 0.25f, 0.18f);
+                GameObject tip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                tip.transform.SetParent(arrow, false);
+                tip.transform.localRotation = Quaternion.Euler(45f, 0f, 45f);
+                tip.transform.localScale = Vector3.one * 0.32f;
+                foreach (GameObject part in new[] { shaft, tip })
+                {
+                    Object.DestroyImmediate(part.GetComponent<Collider>());
+                    part.GetComponent<MeshRenderer>().sharedMaterial = material;
+                }
+            }
+
+            foreach (MeshRenderer renderer in arrow.GetComponentsInChildren<MeshRenderer>())
+            {
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
+            }
+
+            arrow.localScale = Vector3.one * 1.5f;
+            arrow.position = marlow.transform.position + Vector3.up * 2.2f;
+            GameObject guide = new GameObject("Guide Marker");
+            guide.AddComponent<LastTide.GuideMarker>().Configure(marlow.GetComponent<LastTide.Marlow>(), player.transform, arrow);
         }
 
         private static void BuildQuest(Dictionary<string, Material> materials, Transform terrain, GameObject island, Vector3 spawn,
@@ -1042,7 +1261,7 @@ namespace LastTide.EditorTools
                 }
 
                 // The ground drops slightly under the trail, so it can't poke through the path surface.
-                y = Mathf.Lerp(routeHeight - 0.4f, y, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(3f, 8f, nearest)));
+                y = Mathf.Lerp(routeHeight - 0.14f, y, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(3f, 8f, nearest)));
                 y = Mathf.Lerp(shelterHeight, y, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(9f, 13f, Flat(point, shelterSpot))));
                 y = Mathf.Lerp(summit.y, y, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(4f, 8f, Flat(point, summit))));
                 return y;
@@ -1101,39 +1320,77 @@ namespace LastTide.EditorTools
         }
 
         // A smooth walkable path with its own collision, so the coarse terrain can't snag the player.
-        private static void CreateTrailSurface(TrailData trail, Material material)
+        // A smooth path with its own collision. Its edges slope down into the ground, and it rises out of the sand at the start.
+        private static void CreateTrailSurface(TrailData trail, Material material, Collider ground)
         {
-            const float halfWidth = 2.1f, skirtDepth = 0.9f, lift = 0.08f;
+            Physics.SyncTransforms();
+            float[] across = { -3.1f, -2.6f, -1.7f, 0f, 1.7f, 2.6f, 3.1f };
+            float[] lift = { -0.45f, -0.12f, 0.04f, 0.08f, 0.04f, -0.12f, -0.45f };
+            float[] uCoordinates = { 0f, 0.1f, 0.2f, 0.5f, 0.8f, 0.9f, 1f };
+            const int startFade = 10;
             Vector3[] points = trail.Points;
+            int columns = across.Length;
             List<Vector3> vertices = new List<Vector3>();
+            List<Vector2> uvs = new List<Vector2>();
             List<int> triangles = new List<int>();
+            float travelled = 0f;
             for (int i = 0; i < points.Length; i++)
             {
+                if (i > 0)
+                {
+                    travelled += Flat(points[i], points[i - 1]);
+                }
+
                 Vector3 along = points[Mathf.Min(i + 1, points.Length - 1)] - points[Mathf.Max(i - 1, 0)];
                 along.y = 0f;
                 Vector3 side = Vector3.Cross(Vector3.up, along.normalized);
-                Vector3 centre = points[i] + Vector3.up * lift;
-                vertices.Add(centre - side * halfWidth - Vector3.up * skirtDepth);
-                vertices.Add(centre - side * halfWidth);
-                vertices.Add(centre + side * halfWidth);
-                vertices.Add(centre + side * halfWidth - Vector3.up * skirtDepth);
+                float sink = i < startFade ? 0.35f * (1f - (float)i / startFade) : 0f;
+                for (int c = 0; c < columns; c++)
+                {
+                    // The path narrows to a rounded tip where it starts on the beach.
+                    float width = i < startFade ? Mathf.Lerp(0.3f, 1f, Mathf.Sqrt((float)i / startFade)) : 1f;
+                    Vector3 vertex = points[i] + side * (across[c] * width) + Vector3.up * (lift[c] - sink);
+                    // The path's edges settle onto the real ground, so no raised slab edge shows.
+                    if (c != 3 && ground != null && ground.Raycast(new Ray(vertex + Vector3.up * 4f, Vector3.down), out RaycastHit hit, 8f))
+                    {
+                        float groundY = hit.point.y;
+                        if (c == 1 || c == columns - 2)
+                        {
+                            vertex.y = groundY + 0.03f - sink;
+                        }
+                        else if (c == 0 || c == columns - 1)
+                        {
+                            vertex.y = Mathf.Min(vertex.y, groundY - 0.35f);
+                        }
+                        else
+                        {
+                            vertex.y = Mathf.Max(vertex.y, groundY + 0.04f - sink);
+                        }
+                    }
+
+                    vertices.Add(vertex);
+                    uvs.Add(new Vector2(uCoordinates[c], travelled / 3f));
+                }
+
                 if (i == 0)
                 {
                     continue;
                 }
 
-                int a = (i - 1) * 4, b = i * 4;
-                for (int edge = 0; edge < 3; edge++)
+                int a = (i - 1) * columns, b = i * columns;
+                for (int c = 0; c < columns - 1; c++)
                 {
-                    triangles.Add(a + edge); triangles.Add(b + edge); triangles.Add(a + edge + 1);
-                    triangles.Add(a + edge + 1); triangles.Add(b + edge); triangles.Add(b + edge + 1);
+                    triangles.Add(a + c); triangles.Add(b + c); triangles.Add(a + c + 1);
+                    triangles.Add(a + c + 1); triangles.Add(b + c); triangles.Add(b + c + 1);
                 }
             }
 
             Mesh mesh = new Mesh { name = "TrailSurface" };
             mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uvs);
             mesh.SetTriangles(triangles, 0);
             mesh.RecalculateNormals();
+            mesh.RecalculateTangents();
             mesh.RecalculateBounds();
             const string path = "Assets/Models/TrailSurface.asset";
             AssetDatabase.DeleteAsset(path);
@@ -1146,7 +1403,55 @@ namespace LastTide.EditorTools
             surface.isStatic = true;
 
             // Report the facing, because a path facing down would be invisible and uncollidable from above.
-            Debug.Log($"[LastTide] Trail surface faces {(mesh.normals[1 + 4].y > 0f ? "up" : "DOWN")}.");
+            Debug.Log($"[LastTide] Trail surface faces {(mesh.normals[columns * 2 + 3].y > 0f ? "up" : "DOWN")}.");
+        }
+
+        // Small stones half buried along both edges of the trail.
+        private static void AddTrailStones(TrailData trail, GameObject island, Material material)
+        {
+            Mesh[] rocks = island.GetComponentsInChildren<MeshFilter>()
+                .Where(f => f.name.StartsWith("Rock"))
+                .Select(f => f.sharedMesh)
+                .Distinct()
+                .ToArray();
+            if (rocks.Length == 0)
+            {
+                return;
+            }
+
+            Random.InitState(4242);
+            Transform group = new GameObject("Trail Stones").transform;
+            Vector3[] points = trail.Points;
+            int placed = 0;
+            for (int i = 3; i < points.Length - 3; i += 2)
+            {
+                Vector3 along = points[i + 1] - points[i - 1];
+                along.y = 0f;
+                Vector3 side = Vector3.Cross(Vector3.up, along.normalized);
+                foreach (float direction in new[] { -1f, 1f })
+                {
+                    if (Random.value < 0.35f)
+                    {
+                        continue;
+                    }
+
+                    GameObject stone = new GameObject("Trail Stone");
+                    stone.transform.SetParent(group, false);
+                    stone.transform.position = points[i] + side * direction * Random.Range(2.15f, 2.45f) + along.normalized * Random.Range(-0.6f, 0.6f)
+                                               + Vector3.down * 0.12f;
+                    stone.transform.rotation = Quaternion.Euler(Random.Range(-15f, 15f), Random.Range(0f, 360f), Random.Range(-15f, 15f));
+                    float size = Random.Range(0.13f, 0.28f);
+                    stone.transform.localScale = new Vector3(size * Random.Range(0.9f, 1.4f), size * 0.7f, size);
+                    stone.AddComponent<MeshFilter>().sharedMesh = rocks[Random.Range(0, rocks.Length)];
+                    MeshRenderer renderer = stone.AddComponent<MeshRenderer>();
+                    renderer.sharedMaterial = material;
+                    renderer.shadowCastingMode = ShadowCastingMode.Off;
+                    stone.isStatic = true;
+                    placed++;
+                }
+            }
+
+            Debug.Log($"[LastTide] Placed {placed} stones along the trail.");
         }
 
         private static Vector3 UphillSide(TerrainGraph graph, List<Vector3> route, int index)

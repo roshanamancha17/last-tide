@@ -55,3 +55,8 @@ node_modules/
 
 # Web build byproducts
 /Data/
+
+# Unity crash-recovery scenes and Blender preview renders
+/Assets/_Recovery/
+/Assets/_Recovery.meta
+/Art/player_preview.png
