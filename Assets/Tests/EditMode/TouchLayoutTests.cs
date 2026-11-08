@@ -23,7 +23,7 @@ namespace LastTide.Tests
         {
             var layout = new TouchLayout(screen, safe, dpi);
             List<KeyValuePair<TouchAction, Rect>> buttons = layout.Buttons.ToList();
-            Assert.AreEqual(6, buttons.Count);
+            Assert.AreEqual(9, buttons.Count, "6 buttons plus 3 recipe buttons");
             float minimum = TouchLayout.MinButtonPixels(dpi);
             foreach (KeyValuePair<TouchAction, Rect> button in buttons)
             {
@@ -51,11 +51,20 @@ namespace LastTide.Tests
             var layout = new TouchLayout(screen, safe, dpi);
             foreach (KeyValuePair<TouchAction, Rect> button in layout.Buttons)
             {
-                Assert.IsTrue(layout.TryGetButton(button.Value.center, out TouchAction found));
+                Assert.IsTrue(layout.TryGetButton(button.Value.center, out TouchAction found, recipesVisible: true));
                 Assert.AreEqual(button.Key, found);
             }
 
             Assert.IsFalse(layout.TryGetButton(new Vector2(screen.x * 0.2f, screen.y * 0.3f), out _));
+        }
+
+        [TestCaseSource(nameof(Screens))]
+        public void HiddenRecipeButtonsCannotBeTapped(Vector2 screen, Rect safe, float dpi)
+        {
+            var layout = new TouchLayout(screen, safe, dpi);
+            Assert.IsFalse(layout.TryGetButton(layout.Buttons[TouchAction.Recipe2].center, out _));
+            Assert.IsTrue(layout.TryGetButton(layout.Buttons[TouchAction.Craft].center, out TouchAction craft));
+            Assert.AreEqual(TouchAction.Craft, craft);
         }
     }
 }

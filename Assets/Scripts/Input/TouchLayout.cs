@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace LastTide
 {
-    public enum TouchAction { Jump, Interact, Eat, Sprint, Craft, Talk }
+    public enum TouchAction { Jump, Interact, Eat, Sprint, Craft, Talk, Recipe1, Recipe2, Recipe3 }
 
     /// <summary>
     /// Works out where the on-screen buttons go for a given screen, safe area (notches) and pixel density.
@@ -27,7 +27,16 @@ namespace LastTide
             (TouchAction.Sprint, new Vector2(-150f, 370f), 120f),
             (TouchAction.Craft, new Vector2(-150f, 530f), 110f),
             (TouchAction.Talk, new Vector2(-150f, 680f), 110f),
+            // Only shown while the crafting list is open.
+            (TouchAction.Recipe1, new Vector2(-340f, 370f), 110f),
+            (TouchAction.Recipe2, new Vector2(-340f, 530f), 110f),
+            (TouchAction.Recipe3, new Vector2(-340f, 690f), 110f),
         };
+
+        public static bool IsRecipe(TouchAction action)
+        {
+            return action == TouchAction.Recipe1 || action == TouchAction.Recipe2 || action == TouchAction.Recipe3;
+        }
 
         private readonly Dictionary<TouchAction, Rect> buttons = new Dictionary<TouchAction, Rect>();
 
@@ -59,11 +68,16 @@ namespace LastTide
             return MinButtonDp * (dpi > 0f ? dpi : 160f) / 160f;
         }
 
-        /// <summary>The button under a screen point, using the round button shape.</summary>
-        public bool TryGetButton(Vector2 point, out TouchAction action)
+        /// <summary>The visible button under a screen point, using the round button shape.</summary>
+        public bool TryGetButton(Vector2 point, out TouchAction action, bool recipesVisible = false)
         {
             foreach (KeyValuePair<TouchAction, Rect> pair in buttons)
             {
+                if (!recipesVisible && IsRecipe(pair.Key))
+                {
+                    continue;
+                }
+
                 float radius = pair.Value.width * 0.5f;
                 if ((point - pair.Value.center).sqrMagnitude <= radius * radius)
                 {

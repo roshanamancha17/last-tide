@@ -26,8 +26,26 @@ namespace LastTide
         private Rect builtSafeArea;
         private Vector2 builtScreen;
 
+        private bool recipesVisible;
+        private string[] recipeLabels = { "Knife", "Axe", "Campfire" };
+
         public TouchLayout Layout { get; private set; }
         public bool SprintOn { get; private set; }
+
+        /// <summary>Shows or hides the recipe buttons, for when the crafting list opens and closes.</summary>
+        public void SetRecipesVisible(bool visible)
+        {
+            recipesVisible = visible;
+            foreach (KeyValuePair<TouchAction, Image> pair in buttonImages)
+            {
+                if (TouchLayout.IsRecipe(pair.Key) && pair.Value.gameObject.activeSelf != visible)
+                {
+                    pair.Value.gameObject.SetActive(visible);
+                }
+            }
+        }
+
+        public bool RecipesVisible => recipesVisible;
 
         /// <summary>Creates the layout and the on-screen graphics for one screen shape.</summary>
         public void Build(Vector2 screenSize, Rect safeArea, float dpi)
@@ -45,7 +63,7 @@ namespace LastTide
         {
             foreach (TouchSample touch in touches)
             {
-                if (touch.Stage == TouchStage.Began && Layout.TryGetButton(touch.Position, out TouchAction action))
+                if (touch.Stage == TouchStage.Began && Layout.TryGetButton(touch.Position, out TouchAction action, recipesVisible))
                 {
                     buttonFingers.Add(touch.Id);
                     if (action == TouchAction.Sprint)
@@ -63,7 +81,7 @@ namespace LastTide
                 }
             }
 
-            router.Process(touches, Layout.ScreenSize.x, point => Layout.TryGetButton(point, out _));
+            router.Process(touches, Layout.ScreenSize.x, point => Layout.TryGetButton(point, out _, recipesVisible));
         }
 
         /// <summary>This frame's touch input. Button taps count once, then clear.</summary>
@@ -84,6 +102,9 @@ namespace LastTide
                 Eat = pressed.Contains(TouchAction.Eat),
                 Craft = pressed.Contains(TouchAction.Craft),
                 Talk = pressed.Contains(TouchAction.Talk),
+                Recipe = pressed.Contains(TouchAction.Recipe1) ? 1
+                    : pressed.Contains(TouchAction.Recipe2) ? 2
+                    : pressed.Contains(TouchAction.Recipe3) ? 3 : 0,
             };
             pressed.Clear();
             return frame;
@@ -166,7 +187,7 @@ namespace LastTide
                 labelObject.transform.SetParent(image.transform, false);
                 Text label = labelObject.AddComponent<Text>();
                 label.font = font;
-                label.text = pair.Key.ToString();
+                label.text = TouchLayout.IsRecipe(pair.Key) ? recipeLabels[(int)pair.Key - (int)TouchAction.Recipe1] : pair.Key.ToString();
                 label.alignment = TextAnchor.MiddleCenter;
                 label.color = new Color(1f, 1f, 1f, 0.9f);
                 label.resizeTextForBestFit = true;
@@ -180,6 +201,7 @@ namespace LastTide
                 labelRect.offsetMax = Vector2.zero;
             }
 
+            SetRecipesVisible(recipesVisible);
             float ring = Layout.JoystickRadius * 2f;
             joystickBase = Circle("Joystick Base", canvas.transform, circle, new Color(1f, 1f, 1f, 0.15f)).rectTransform;
             joystickBase.sizeDelta = new Vector2(ring, ring);

@@ -92,7 +92,9 @@ namespace LastTide
             if (ending)
             {
                 Keyboard keyboard = Keyboard.current;
-                if (canRestart && keyboard != null && keyboard.rKey.wasPressedThisFrame)
+                bool restart = (keyboard != null && keyboard.rKey.wasPressedThisFrame)
+                               || GameInput.Current.Interact || GameInput.Current.Jump;
+                if (canRestart && restart)
                 {
                     GameEvents.Clear();
                     UiState.IsTyping = false;

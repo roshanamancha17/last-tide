@@ -11,6 +11,7 @@ namespace LastTide
     public class InputCollector : MonoBehaviour
     {
         private TouchControls touch;
+        private CraftingSystem crafting;
 
         /// <summary>True once on-screen touch controls are in use.</summary>
         public static bool TouchActive { get; private set; }
@@ -41,6 +42,16 @@ namespace LastTide
             InputFrame keys = UiState.IsTyping
                 ? default
                 : KeyboardMouseInput.Read(Keyboard.current, Mouse.current, Cursor.lockState == CursorLockMode.Locked);
+            if (touch != null)
+            {
+                if (crafting == null)
+                {
+                    crafting = FindAnyObjectByType<CraftingSystem>();
+                }
+
+                touch.SetRecipesVisible(crafting != null && crafting.PanelOpen);
+            }
+
             InputFrame fingers = touch != null ? touch.Collect() : default;
             GameInput.Set(InputFrame.Combine(keys, fingers));
         }

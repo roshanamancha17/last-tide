@@ -21,6 +21,14 @@ namespace LastTide.Tests
         }
 
         [Test]
+        public void ARecipeChosenOnEitherDeviceCounts()
+        {
+            Assert.AreEqual(3, InputFrame.Combine(new InputFrame(), new InputFrame { Recipe = 3 }).Recipe);
+            Assert.AreEqual(1, InputFrame.Combine(new InputFrame { Recipe = 1 }, new InputFrame()).Recipe);
+            Assert.AreEqual(0, InputFrame.Combine(new InputFrame(), new InputFrame()).Recipe);
+        }
+
+        [Test]
         public void CameraTurnFromMouseAndTouchAddsUp()
         {
             InputFrame both = InputFrame.Combine(new InputFrame { Look = new Vector2(3f, 1f) }, new InputFrame { Look = new Vector2(2f, -1f) });

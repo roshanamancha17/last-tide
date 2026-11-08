@@ -23,6 +23,9 @@ namespace LastTide
                 frame.Eat = keyboard.cKey.wasPressedThisFrame;
                 frame.Craft = keyboard.tabKey.wasPressedThisFrame;
                 frame.Talk = keyboard.tKey.wasPressedThisFrame;
+                if (keyboard.digit1Key.wasPressedThisFrame) frame.Recipe = 1;
+                else if (keyboard.digit2Key.wasPressedThisFrame) frame.Recipe = 2;
+                else if (keyboard.digit3Key.wasPressedThisFrame) frame.Recipe = 3;
             }
 
             if (mouse != null && lookWithMouse)

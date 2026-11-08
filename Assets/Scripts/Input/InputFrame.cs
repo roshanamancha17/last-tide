@@ -18,6 +18,9 @@ namespace LastTide
         public bool Craft;
         public bool Talk;
 
+        /// <summary>Recipe chosen this frame: 1 to 3, or 0 for none.</summary>
+        public int Recipe;
+
         /// <summary>Merges two devices, so keyboard and touch can be used at the same time.</summary>
         public static InputFrame Combine(InputFrame a, InputFrame b)
         {
@@ -31,6 +34,7 @@ namespace LastTide
                 Eat = a.Eat || b.Eat,
                 Craft = a.Craft || b.Craft,
                 Talk = a.Talk || b.Talk,
+                Recipe = a.Recipe != 0 ? a.Recipe : b.Recipe,
             };
         }
     }

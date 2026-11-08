@@ -24,8 +24,11 @@ namespace LastTide
         private string typed = string.Empty;
         private string playerId;
         private bool waiting;
-        private bool open;
         private float backspaceRepeatAt;
+        private ChatFlow flow;
+        private bool touchMode;
+        private TouchScreenKeyboard phoneKeyboard;
+        private Text helpText;
 
         private Marlow marlow;
         private Inventory inventory;
@@ -51,8 +54,9 @@ namespace LastTide
         {
             AddLine("Marlow", "Systems online. Mostly. I'm Marlow, and you look terrible.");
             AddLine("Marlow", "There's a signal beacon on the peak, but it needs three parts. Find them and we can call for rescue.");
-            hintPanel.SetActive(!open);
-            SetOpen(true);
+            EnsureFlow();
+            flow.Introduce();
+            Sync();
         }
 
         private void Awake()
@@ -85,11 +89,13 @@ namespace LastTide
                 Keyboard.current.onTextInput -= OnTextInput;
             }
             UiState.IsTyping = false;
+            CloseKeyboard();
         }
 
         private void OnTextInput(char character)
         {
-            if (open && !char.IsControl(character) && typed.Length < MaxTypedLength)
+            bool typingOnKeyboard = flow != null && flow.State == ChatState.Typing && phoneKeyboard == null;
+            if (typingOnKeyboard && !char.IsControl(character) && typed.Length < MaxTypedLength)
             {
                 typed += character;
                 RefreshInput();
@@ -103,33 +109,133 @@ namespace LastTide
                 return;
             }
 
-            if (!open)
+            EnsureFlow();
+            InputFrame input = GameInput.Current;
+            if (input.Talk)
             {
-                if (GameInput.Current.Talk)
-                {
-                    SetOpen(true);
-                }
-                return;
+                Apply(flow.TalkPressed());
             }
 
+            // On phones, walking away closes a chat that is only being read.
+            if (input.Move.sqrMagnitude > 0.1f)
+            {
+                flow.PlayerMoved();
+            }
+
+            // Esc on a keyboard, and the Android back button, which Unity reports as Esc.
             Keyboard keyboard = Keyboard.current;
-            if (keyboard == null)
-            {
-                return;
-            }
-
-            if (keyboard.escapeKey.wasPressedThisFrame)
+            if (flow.PanelVisible && keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
             {
                 UiState.EscapeHandledFrame = Time.frameCount;
-                SetOpen(false);
+                Apply(flow.BackPressed());
+            }
+            else if (phoneKeyboard != null)
+            {
+                ReadPhoneKeyboard();
+            }
+            else if (flow.State == ChatState.Typing && keyboard != null)
+            {
+                HandleBackspace(keyboard);
+                if (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame)
+                {
+                    Apply(flow.SubmitPressed());
+                }
+            }
+
+            Sync();
+        }
+
+        private void EnsureFlow()
+        {
+            if (flow != null)
+            {
                 return;
             }
 
-            HandleBackspace(keyboard);
-            if (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame)
+            touchMode = InputCollector.TouchActive;
+            flow = new ChatFlow(touchMode);
+            if (touchMode)
             {
-                Send();
+                // Top middle of the screen, clear of the touch buttons on the right.
+                RectTransform rect = (RectTransform)chatPanel.transform;
+                rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 1f);
+                rect.anchoredPosition = new Vector2(0f, -90f);
+                rect.sizeDelta = new Vector2(760f, 380f);
+                helpText.text = "Tap Talk to reply    Walk away to close";
             }
+        }
+
+        private void Apply(ChatCommand command)
+        {
+            switch (command)
+            {
+                case ChatCommand.Send:
+                    Send();
+                    break;
+                case ChatCommand.OpenKeyboard:
+                    // The editor's phone simulator has no on-screen keyboard; the PC keyboard is used there instead.
+                    if (TouchScreenKeyboard.isSupported)
+                    {
+                        phoneKeyboard = TouchScreenKeyboard.Open(typed, TouchScreenKeyboardType.Default, true, false, false, false,
+                            "Talk to Marlow", MaxTypedLength);
+                    }
+                    break;
+                case ChatCommand.CloseKeyboard:
+                    CloseKeyboard();
+                    break;
+            }
+        }
+
+        private void ReadPhoneKeyboard()
+        {
+            string text = phoneKeyboard.text ?? string.Empty;
+            typed = text.Length > MaxTypedLength ? text.Substring(0, MaxTypedLength) : text;
+            switch (phoneKeyboard.status)
+            {
+                case TouchScreenKeyboard.Status.Done:
+                    phoneKeyboard = null;
+                    Apply(flow.SubmitPressed());
+                    break;
+                case TouchScreenKeyboard.Status.Canceled:
+                case TouchScreenKeyboard.Status.LostFocus:
+                    phoneKeyboard = null;
+                    flow.KeyboardCanceled();
+                    break;
+            }
+        }
+
+        private void CloseKeyboard()
+        {
+            if (phoneKeyboard != null)
+            {
+                phoneKeyboard.active = false;
+                phoneKeyboard = null;
+            }
+        }
+
+        private void Sync()
+        {
+            bool visible = flow.PanelVisible;
+            UiState.IsTyping = flow.BlocksGameplayKeys;
+            if (chatPanel.activeSelf != visible)
+            {
+                chatPanel.SetActive(visible);
+                RefreshTranscript();
+            }
+
+            // Phones have a Talk button instead of the [T] hint.
+            bool hint = !visible && marlow.IsAwake && !touchMode;
+            if (hintPanel.activeSelf != hint)
+            {
+                hintPanel.SetActive(hint);
+            }
+
+            if (!visible)
+            {
+                CloseKeyboard();
+            }
+
+            RefreshInput();
         }
 
         private void HandleBackspace(Keyboard keyboard)
@@ -222,16 +328,6 @@ namespace LastTide
             };
         }
 
-        private void SetOpen(bool value)
-        {
-            open = value;
-            UiState.IsTyping = value;
-            chatPanel.SetActive(value);
-            hintPanel.SetActive(!value && marlow.IsAwake);
-            RefreshTranscript();
-            RefreshInput();
-        }
-
         private void AddLine(string speaker, string line)
         {
             string colour = speaker == "Marlow" ? "#7fe8ff" : "#ffd27f";
@@ -250,7 +346,18 @@ namespace LastTide
 
         private void RefreshInput()
         {
-            inputText.text = waiting ? "<i>Marlow is thinking...</i>" : $"> {typed}_";
+            if (waiting)
+            {
+                inputText.text = "<i>Marlow is thinking...</i>";
+            }
+            else if (flow != null && flow.State == ChatState.Reading)
+            {
+                inputText.text = "<i>Tap Talk to reply</i>";
+            }
+            else
+            {
+                inputText.text = $"> {typed}_";
+            }
         }
 
         private void BuildUi()
@@ -273,10 +380,10 @@ namespace LastTide
                 new Vector2(18f, 92f), new Vector2(-18f, -14f));
             inputText = Label(chatPanel.transform, "Input", TextAnchor.MiddleLeft, 26, Vector2.zero, new Vector2(1f, 0f),
                 new Vector2(18f, 40f), new Vector2(-18f, 86f));
-            Text help = Label(chatPanel.transform, "Help", TextAnchor.MiddleLeft, 20, Vector2.zero, new Vector2(1f, 0f),
+            helpText = Label(chatPanel.transform, "Help", TextAnchor.MiddleLeft, 20, Vector2.zero, new Vector2(1f, 0f),
                 new Vector2(18f, 8f), new Vector2(-18f, 38f));
-            help.text = "[Enter] Send    [Esc] Close";
-            help.color = new Color(1f, 1f, 1f, 0.6f);
+            helpText.text = "[Enter] Send    [Esc] Close";
+            helpText.color = new Color(1f, 1f, 1f, 0.6f);
             chatPanel.SetActive(false);
         }
 

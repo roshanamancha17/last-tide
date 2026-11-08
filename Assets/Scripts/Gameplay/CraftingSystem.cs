@@ -55,6 +55,9 @@ namespace LastTide
             heldAxe = axe;
         }
 
+        /// <summary>True while the crafting list is showing.</summary>
+        public bool PanelOpen => panelOpen;
+
         private void Awake()
         {
             inventory = GetComponent<Inventory>();
@@ -83,15 +86,11 @@ namespace LastTide
                 RefreshPanel();
             }
 
-            Keyboard keyboard = Keyboard.current;
-            if (!panelOpen || keyboard == null)
+            int recipe = GameInput.Current.Recipe;
+            if (panelOpen && recipe >= 1 && recipe <= Recipes.Length)
             {
-                return;
+                Craft(Recipes[recipe - 1]);
             }
-
-            if (keyboard.digit1Key.wasPressedThisFrame) Craft(Recipes[0]);
-            if (keyboard.digit2Key.wasPressedThisFrame) Craft(Recipes[1]);
-            if (keyboard.digit3Key.wasPressedThisFrame) Craft(Recipes[2]);
         }
 
         private void Craft(Recipe recipe)

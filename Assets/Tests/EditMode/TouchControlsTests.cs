@@ -112,6 +112,31 @@ namespace LastTide.Tests
         }
 
         [Test]
+        public void RecipeButtonsWorkOnlyWhileTheCraftingListIsOpen()
+        {
+            Vector2 recipe2 = Centre(TouchAction.Recipe2);
+            Frame(new TouchSample(1, TouchStage.Began, recipe2));
+            InputFrame hidden = controls.Collect();
+            Assert.AreEqual(0, hidden.Recipe, "a hidden recipe button can't be pressed");
+
+            Frame(new TouchSample(1, TouchStage.Ended, recipe2));
+            controls.SetRecipesVisible(true);
+            Frame(new TouchSample(2, TouchStage.Began, recipe2));
+            Assert.AreEqual(2, controls.Collect().Recipe);
+            Assert.AreEqual(0, controls.Collect().Recipe, "a tap chooses the recipe once");
+        }
+
+        [Test]
+        public void RecipeButtonsAreShownAndHiddenOnScreen()
+        {
+            Transform ui = host.transform.Find("Touch Controls UI");
+            Assert.IsFalse(ui.Find("Recipe1 Button").gameObject.activeSelf);
+            controls.SetRecipesVisible(true);
+            Assert.IsTrue(ui.Find("Recipe1 Button").gameObject.activeSelf);
+            Assert.AreEqual("Campfire", ui.Find("Recipe3 Button/Label").GetComponent<UnityEngine.UI.Text>().text);
+        }
+
+        [Test]
         public void BuildsSixButtonsAndAHiddenJoystick()
         {
             Transform ui = host.transform.Find("Touch Controls UI");
